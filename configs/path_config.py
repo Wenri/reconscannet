@@ -6,7 +6,7 @@ date: July, 2020
 import os
 import pickle
 from itertools import chain
-from pathlib import Path
+from pathlib import PurePath, Path
 
 import numpy as np
 
@@ -42,7 +42,7 @@ ShapeNetIDMap = {'4379243': 'table', '3593526': 'jar', '4225987': 'skateboard', 
 
 
 class PathConfig(object):
-    def __init__(self, dataset, prefix=Path('.')):
+    def __init__(self, dataset, prefix=PurePath()):
         self.ShapeNetv2_path = Path(prefix, 'ShapeNetCore.v2')
         if dataset == 'scannet':
             self.metadata_root = Path(prefix, 'scannet')
