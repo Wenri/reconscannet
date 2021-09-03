@@ -2,6 +2,7 @@
 
 import os
 import pickle
+import warnings
 from multiprocessing import Pool
 
 import numpy as np
@@ -39,6 +40,31 @@ def get_votes(box3D, mesh_vertices, point_votes, indices, point_vote_idx):
     return point_votes, point_vote_idx
 
 
+def get_rectified_axis(axis_transformed):
+    up_rectified_id = np.argmax(axis_transformed[:, 2])
+    if up_rectified_id != 0 and up_rectified_id != 2:
+        warnings.warn(f"{up_rectified_id=}")
+    forward_rectified_id = 0 if up_rectified_id != 0 else (up_rectified_id + 1) % 3
+    left_rectified_id = np.setdiff1d([0, 1, 2], [up_rectified_id, forward_rectified_id])[0]
+    rectified_id = [forward_rectified_id, left_rectified_id, up_rectified_id]
+
+    forward_rectified = axis_transformed[forward_rectified_id]
+    forward_rectified = np.array([*forward_rectified[:2], 0.])
+    forward_rectified = normalize(forward_rectified)
+    up_rectified = np.array([0, 0, 1])
+    left_rectified = np.cross(up_rectified, forward_rectified)
+
+    axis_rectified = np.zeros_like(axis_transformed)
+    axis_rectified[forward_rectified_id] = forward_rectified
+    axis_rectified[left_rectified_id] = left_rectified
+    axis_rectified[up_rectified_id] = up_rectified
+    if np.linalg.det(axis_rectified) < 0:
+        axis_rectified[left_rectified_id] *= -1
+
+    orientation = np.arctan2(forward_rectified[1], forward_rectified[0])
+    return rectified_id, axis_rectified, orientation
+
+
 def transform_axis(R_transform, Mcad, obj_points):
     transform_shape = R_transform.dot(Mcad)
     '''get transformed axes'''
@@ -59,20 +85,8 @@ def transform_axis(R_transform, Mcad, obj_points):
     up_transformed = normalize(up_transformed)
     axis_transformed = np.array([forward_transformed, left_transformed, up_transformed])
     '''get rectified axis'''
-    axis_rectified = np.zeros_like(axis_transformed)
-    up_rectified_id = np.argmax(axis_transformed[:, 2])
-    forward_rectified_id = 0 if up_rectified_id != 0 else (up_rectified_id + 1) % 3
-    left_rectified_id = np.setdiff1d([0, 1, 2], [up_rectified_id, forward_rectified_id])[0]
-    up_rectified = np.array([0, 0, 1])
-    forward_rectified = axis_transformed[forward_rectified_id]
-    forward_rectified = np.array([*forward_rectified[:2], 0.])
-    forward_rectified = normalize(forward_rectified)
-    left_rectified = np.cross(up_rectified, forward_rectified)
-    axis_rectified[forward_rectified_id] = forward_rectified
-    axis_rectified[left_rectified_id] = left_rectified
-    axis_rectified[up_rectified_id] = up_rectified
-    if np.linalg.det(axis_rectified) < 0:
-        axis_rectified[left_rectified_id] *= -1
+    rectified_id, axis_rectified, orientation = get_rectified_axis(axis_transformed)
+
     '''deploy points'''
     obj_points = np.hstack([obj_points, np.ones((obj_points.shape[0], 1))]).dot(transform_shape.T)[..., :3]
     coordinates = (obj_points - center_transformed).dot(axis_transformed.T)
@@ -80,8 +94,7 @@ def transform_axis(R_transform, Mcad, obj_points):
     '''define bounding boxes'''
     # [center, edge size, orientation]
     sizes = (coordinates.max(0) - coordinates.min(0))
-    box3D = np.hstack([center_transformed, sizes[[forward_rectified_id, left_rectified_id, up_rectified_id]],
-                       np.array([np.arctan2(forward_rectified[1], forward_rectified[0])])])
+    box3D = np.hstack([center_transformed, sizes[rectified_id], np.atleast_1d(orientation)])
     # vectors = np.diag((coordinates.max(0) - coordinates.min(0)) / 2).dot(axis_rectified)
     # box3D = np.eye(4)
     # box3D[:3, :] = np.hstack([vectors.T, center_transformed[np.newaxis].T])
@@ -204,5 +217,8 @@ def main():
 
 
 if __name__ == '__main__':
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['NUMEXPR_NUM_THREADS'] = '1'
     path_config = PathConfig('scannet')
     main()
