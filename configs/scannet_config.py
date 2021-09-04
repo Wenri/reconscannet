@@ -2,25 +2,28 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+from pathlib import PurePath, Path
 
 import numpy as np
-from configs.path_config import SHAPENETCLASSES
-from configs.path_config import ScanNet_OBJ_CLASS_IDS as OBJ_CLASS_IDS
 import torch
 
+from configs.path_config import SHAPENETCLASSES
+from configs.path_config import ScanNet_OBJ_CLASS_IDS as OBJ_CLASS_IDS
+
+
 class ScannetConfig(object):
-    def __init__(self):
+    def __init__(self, prefix=PurePath()):
         self.num_class = len(OBJ_CLASS_IDS)
         self.num_heading_bin = 12
         self.num_size_cluster = len(OBJ_CLASS_IDS)
 
-        self.type2class = {SHAPENETCLASSES[cls]:index for index, cls in enumerate(OBJ_CLASS_IDS)}
+        self.type2class = {SHAPENETCLASSES[cls]: index for index, cls in enumerate(OBJ_CLASS_IDS)}
         self.class2type = {self.type2class[t]: t for t in self.type2class}
         self.class_ids = OBJ_CLASS_IDS
         self.shapenetid2class = {class_id: i for i, class_id in enumerate(list(self.class_ids))}
-        self.mean_size_arr = np.load('datasets/scannet/scannet_means.npz')['arr_0']
+        self.mean_size_arr = np.load(Path(prefix, 'scannet', 'scannet_means.npz'))['arr_0']
         self.type_mean_size = {}
-        self.data_path = 'datasets/scannet/processed_data'
+        self.data_path = Path('datasets', 'scannet', 'processed_data')
         for i in range(self.num_size_cluster):
             self.type_mean_size[self.class2type[i]] = self.mean_size_arr[i, :]
 
@@ -45,11 +48,11 @@ class ScannetConfig(object):
     def class2angle(self, pred_cls, residual, to_label_format=True):
         ''' Inverse function to angle2class '''
         num_class = self.num_heading_bin
-        angle_per_class = 2*np.pi/float(num_class)
+        angle_per_class = 2 * np.pi / float(num_class)
         angle_center = pred_cls * angle_per_class
         angle = angle_center + residual
-        if to_label_format and angle>np.pi:
-            angle = angle - 2*np.pi
+        if to_label_format and angle > np.pi:
+            angle = angle - 2 * np.pi
         return angle
 
     def class2angle_cuda(self, pred_cls, residual, to_label_format=True):
@@ -59,7 +62,7 @@ class ScannetConfig(object):
         angle_center = pred_cls.float() * angle_per_class
         angle = angle_center + residual
         if to_label_format:
-            angle = angle - 2*np.pi*(angle>np.pi).float()
+            angle = angle - 2 * np.pi * (angle > np.pi).float()
         return angle
 
     def size2class(self, size, type_name):
@@ -108,6 +111,7 @@ def rotate_aligned_boxes(input_boxes, rot_mat):
     new_lengths = np.stack((new_dx, new_dy, lengths[:, 2]), axis=1)
 
     return np.concatenate([new_centers, new_lengths], axis=1)
+
 
 if __name__ == '__main__':
     cfg = ScannetConfig()

@@ -9,7 +9,7 @@ device:
   num_workers: 8
 data:
   dataset: scannet
-  split: datasets/splits/fullscan
+  split: splits/fullscan
   num_point: 80000
   num_target: 256
   vote_factor: 1

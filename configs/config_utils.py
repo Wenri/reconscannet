@@ -5,6 +5,7 @@
 import logging
 import os
 from datetime import datetime
+from types import SimpleNamespace
 
 import yaml
 
@@ -26,17 +27,18 @@ def update_recursive(dict1, dict2):
             dict1[k] = v
 
 
-class CONFIG(object):
+class CONFIG(SimpleNamespace):
     """
     Stores all configures
     """
 
-    def __init__(self, input=None):
+    def __init__(self, input=None, **kwargs):
         """
         Loads config file
         :param path (str): path to config file
         :return:
         """
+        super().__init__(**kwargs)
         self.config = self.read_to_dict(input)
         self._logger, self._save_path = self.load_logger()
 
@@ -86,12 +88,9 @@ class CONFIG(object):
     def read_to_dict(self, input):
         if not input:
             return dict()
-        if isinstance(input, str) and os.path.isfile(input):
-            if input.endswith('yaml'):
-                with open(input, 'r') as f:
-                    config = yaml.load(f, Loader=yaml.FullLoader)
-            else:
-                ValueError('Config file should be with the format of *.yaml')
+        if isinstance(input, str) or isinstance(input, os.PathLike):
+            with open(input, 'r') as f:
+                config = yaml.load(f, Loader=yaml.FullLoader)
         elif isinstance(input, dict):
             config = input
         else:

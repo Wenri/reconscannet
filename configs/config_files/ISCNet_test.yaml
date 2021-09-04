@@ -10,7 +10,7 @@ device:
   num_workers: 0
 data:
   dataset: scannet
-  split: datasets/splits/fullscan
+  split: splits/fullscan
   num_point: 80000
   num_target: 256
   vote_factor: 1
@@ -19,7 +19,7 @@ data:
   no_height: False
   use_color_detection: False
   use_color_completion: False
-  shapenet_path: datasets/ShapeNetv2_data
+  shapenet_path: ShapeNetv2_data
   points_unpackbits: True
   points_subsample: [1024, 1024]
   hidden_dim: 512
