@@ -6,7 +6,7 @@ weight: ['out/iscnet/2021-07-02T07:00:24.481384/model_last.pth']
 seed: 10
 device:
   use_gpu: True
-  gpu_ids: '1'
+  gpu_ids: '0'
   num_workers: 0
 data:
   dataset: scannet
@@ -16,7 +16,7 @@ data:
   vote_factor: 1
   cluster_sampling: seed_fps
   ap_iou_thresh: 0.25
-  no_height: False
+  no_height: True
   use_color_detection: False
   use_color_completion: False
   shapenet_path: ShapeNetv2_data
