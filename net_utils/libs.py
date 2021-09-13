@@ -102,9 +102,9 @@ def softmax(x):
 
 
 def flip_axis_to_camera(pc):
-    ''' Flip X-right,Y-forward,Z-up to X-right,Y-down,Z-forward
+    """ Flip X-right,Y-forward,Z-up to X-right,Y-down,Z-forward
     Input and output are both (N,3) array
-    '''
+    """
     pc2 = np.copy(pc)
     pc2[..., [0, 1, 2]] = pc2[..., [0, 2, 1]]  # cam X,Y,Z = depth X,-Z,Y
     pc2[..., 1] *= -1
@@ -112,9 +112,9 @@ def flip_axis_to_camera(pc):
 
 
 def flip_axis_to_camera_cuda(pc):
-    ''' Flip X-right,Y-forward,Z-up to X-right,Y-down,Z-forward
+    """ Flip X-right,Y-forward,Z-up to X-right,Y-down,Z-forward
     Input and output are both (N,3) array
-    '''
+    """
     pc2 = pc.clone()
     pc2[..., [0, 1, 2]] = pc2[..., [0, 2, 1]]
     pc2[..., 1] *= -1
