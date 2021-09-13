@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+from types import SimpleNamespace
 
 import torch
 from torch.utils.data import DataLoader
@@ -32,11 +33,14 @@ def run(opt):
                             worker_init_fn=my_worker_init_fn)
 
     for cur_iter, data in enumerate(dataloader):
-        for idx in torch.nonzero(data['box_label_mask'].squeeze(0)):
-            print(data)
-
-        output1, output2, expansion_penalty = network(partial.transpose(2, 1).contiguous())
-        print(data)
+        bid = 0
+        c = SimpleNamespace(**{k: v[bid] for k, v in data.items()})
+        for idx in torch.nonzero(c.box_label_mask):
+            ins_id = c.object_instance_labels[idx]
+            ins_pc = c.point_clouds[c.point_instance_labels == ins_id]
+            partial = ins_pc.T.cuda().unsqueeze(0)
+            output1, output2, expansion_penalty = network(partial)
+            print(output2.shape)
 
 
 def parse_args():
