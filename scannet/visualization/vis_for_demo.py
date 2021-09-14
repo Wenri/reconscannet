@@ -156,7 +156,7 @@ class Vis_base(Vis_Scannet):
             inst_color_ids = np.round(dists*(self.palette_inst.shape[0]-1)).astype(np.uint8)
 
             for obj, color_id in zip(self.instance_models, inst_color_ids):
-                object_actor = self.set_actor(self.set_mapper(obj, 'box'))
+                object_actor = self.set_actor(self.set_mapper(obj, 'model'))
                 object_actor.GetProperty().SetColor(self.palette_inst[color_id])
                 object_actor.GetProperty().SetInterpolationToPBR()
                 renderer.AddActor(object_actor)

@@ -1,12 +1,14 @@
 import argparse
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import open3d as o3d
 import torch
 import vtkmodules.all as vtk
 from torch.utils.data import DataLoader
-from vtkmodules.util.numpy_support import numpy_to_vtk
+from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
 from configs.config_utils import CONFIG
 from configs.scannet_config import ScannetConfig
@@ -17,6 +19,15 @@ from net_utils.box_util import get_3d_box_cuda
 from net_utils.libs import flip_axis_to_camera_cuda, flip_axis_to_depth_cuda
 from net_utils.utils import initiate_environment
 from scannet.visualization.vis_for_demo import Vis_base
+
+
+def pcd_to_mesh(xyz, output_file):
+    pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(xyz))
+    pcd.estimate_normals()
+    poisson_mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=8, width=0, scale=1.1,
+                                                                                linear_fit=False)
+    o3d.io.write_triangle_mesh(os.fspath(output_file), poisson_mesh)
+    return poisson_mesh
 
 
 def get_bbox(dataset_config, center_label, heading_class_label, heading_residual_label,
@@ -85,12 +96,23 @@ def run(opt, cfg):
 
             output1, output2, expansion_penalty = network(point_clouds.unsqueeze(0))
 
-            points_array = numpy_to_vtk(output2[0, :, :3].detach().cpu().numpy(), deep=True)
-            polydata = vtk.vtkPolyData()
-            vtkpoints = vtk.vtkPoints()
-            vtkpoints.SetData(points_array)
-            polydata.SetPoints(vtkpoints)
-            instance_models.append(polydata)
+            output_pcd = output2[0, :, :3].detach().cpu().numpy()
+            output_pcd_fn = opt.output_dir / 'mesh.ply'
+            pcd_to_mesh(output_pcd, output_pcd_fn)
+
+            ply_reader = vtk.vtkPLYReader()
+            ply_reader.SetFileName(os.fspath(output_pcd_fn))
+            ply_reader.Update()
+            # get points from object
+            polydata = ply_reader.GetOutput().GetPoints()
+            # read points using vtk_to_numpy
+            obj_points = torch.from_numpy(vtk_to_numpy(polydata.GetData()))
+            obj_points = torch.matmul(obj_points, transform_shapenet.T) * c.box_sizes[idx]
+            obj_points = torch.matmul(obj_points, c.axis_rectified[idx]) + c.box_centers[idx]
+
+            polydata.SetData(numpy_to_vtk(obj_points.numpy(), deep=True))
+            instance_models.append(ply_reader)
+
             center_list.append(c.box_centers[idx].numpy())
 
             vectors = torch.diag(c.box_sizes[idx] / 2.) @ c.axis_rectified[idx]
@@ -101,7 +123,7 @@ def run(opt, cfg):
         scene = Vis_base(scene_points=c.point_clouds, instance_models=instance_models, center_list=center_list,
                          vector_list=vector_list)
         camera_center = np.array([0, -3, 3])
-        scene.visualize(centroid=camera_center, offline=False, save_path=Path('out', 'pred.png'))
+        scene.visualize(centroid=camera_center, offline=False, save_path=opt.output_dir / 'pred.png')
 
 
 def parse_args():
@@ -117,6 +139,8 @@ def parse_args():
     parser.add_argument('--n_primitives', type=int, default=16, help='number of primitives in the atlas')
     parser.add_argument('--model', type=Path, default=Path('trained_model', 'network.pth'),
                         help='optional reload model path')
+    parser.add_argument('--output_dir', type=Path, default=Path('out'),
+                        help='output path')
     return parser.parse_args()
 
 
