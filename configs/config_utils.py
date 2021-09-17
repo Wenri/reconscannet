@@ -52,7 +52,10 @@ class CONFIG(SimpleNamespace):
         self.update_config(log={'vis_path': vis_path})
 
         # initiate device environments
-        os.environ["CUDA_VISIBLE_DEVICES"] = self.config['device']['gpu_ids']
+        device = self.config.get('device')
+        gpu_ids = device.get('gpu_ids') if device else None
+        if gpu_ids:
+            os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
 
     @property
     def logger(self):

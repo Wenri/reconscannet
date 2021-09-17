@@ -1,10 +1,12 @@
-import torch
 import numpy as np
+import torch
 import trimesh
 from scipy import ndimage
 from skimage.measure import block_reduce
-from libvoxelize.voxelize import voxelize_mesh_
-from libmesh.inside_mesh import check_mesh_contains
+
+from external.libmesh.inside_mesh import check_mesh_contains
+from external.libvoxelize.voxelize import voxelize_mesh_
+
 
 # From Occupancy Networks, Mescheder et. al. CVPR'19
 
@@ -32,7 +34,7 @@ def make_3d_grid(bb_min, bb_max, shape):
 
 class VoxelGrid:
     def __init__(self, data, loc=(0., 0., 0.), scale=1):
-        assert(data.shape[0] == data.shape[1] == data.shape[2])
+        assert (data.shape[0] == data.shape[1] == data.shape[2])
         data = np.asarray(data, dtype=np.bool)
         loc = np.asarray(loc)
         self.data = data
@@ -48,7 +50,7 @@ class VoxelGrid:
 
         # Default scale, scales the mesh to [-0.45, 0.45]^3
         if scale is None:
-            scale = (bounds[1] - bounds[0]).max()/0.9
+            scale = (bounds[1] - bounds[0]).max() / 0.9
 
         loc = np.asarray(loc)
         scale = float(scale)
@@ -56,7 +58,7 @@ class VoxelGrid:
         # Transform mesh
         mesh = mesh.copy()
         mesh.apply_translation(-loc)
-        mesh.apply_scale(1/scale)
+        mesh.apply_scale(1 / scale)
 
         # Apply method
         if method == 'ray':
@@ -98,9 +100,9 @@ class VoxelGrid:
         f2 = f2_r | f2_l
         f3 = f3_r | f3_l
 
-        assert(f1.shape == (nx + 1, ny, nz))
-        assert(f2.shape == (nx, ny + 1, nz))
-        assert(f3.shape == (nx, ny, nz + 1))
+        assert (f1.shape == (nx + 1, ny, nz))
+        assert (f2.shape == (nx, ny + 1, nz))
+        assert (f3.shape == (nx, ny, nz + 1))
 
         # Determine if vertex present
         v = np.full(grid_shape, False)
@@ -195,7 +197,7 @@ class VoxelGrid:
 
     @property
     def resolution(self):
-        assert(self.data.shape[0] == self.data.shape[1] == self.data.shape[2])
+        assert (self.data.shape[0] == self.data.shape[1] == self.data.shape[2])
         return self.data.shape[0]
 
     def contains(self, points):
@@ -206,11 +208,11 @@ class VoxelGrid:
         # Discretize points to [0, nx-1]^3
         points_i = ((points + 0.5) * nx).astype(np.int32)
         # i1, i2, i3 have sizes (batch_size, T)
-        i1, i2, i3 = points_i[..., 0],  points_i[..., 1],  points_i[..., 2]
+        i1, i2, i3 = points_i[..., 0], points_i[..., 1], points_i[..., 2]
         # Only use indices inside bounding box
         mask = (
-            (i1 >= 0) & (i2 >= 0) & (i3 >= 0)
-            & (nx > i1) & (nx > i2) & (nx > i3)
+                (i1 >= 0) & (i2 >= 0) & (i3 >= 0)
+                & (nx > i1) & (nx > i2) & (nx > i3)
         )
         # Prevent out of bounds error
         i1 = i1[mask]
@@ -275,14 +277,14 @@ def check_voxel_occupied(occupancy_grid):
     occ = occupancy_grid
 
     occupied = (
-        occ[..., :-1, :-1, :-1]
-        & occ[..., :-1, :-1, 1:]
-        & occ[..., :-1, 1:, :-1]
-        & occ[..., :-1, 1:, 1:]
-        & occ[..., 1:, :-1, :-1]
-        & occ[..., 1:, :-1, 1:]
-        & occ[..., 1:, 1:, :-1]
-        & occ[..., 1:, 1:, 1:]
+            occ[..., :-1, :-1, :-1]
+            & occ[..., :-1, :-1, 1:]
+            & occ[..., :-1, 1:, :-1]
+            & occ[..., :-1, 1:, 1:]
+            & occ[..., 1:, :-1, :-1]
+            & occ[..., 1:, :-1, 1:]
+            & occ[..., 1:, 1:, :-1]
+            & occ[..., 1:, 1:, 1:]
     )
     return occupied
 
@@ -291,14 +293,14 @@ def check_voxel_unoccupied(occupancy_grid):
     occ = occupancy_grid
 
     unoccupied = ~(
-        occ[..., :-1, :-1, :-1]
-        | occ[..., :-1, :-1, 1:]
-        | occ[..., :-1, 1:, :-1]
-        | occ[..., :-1, 1:, 1:]
-        | occ[..., 1:, :-1, :-1]
-        | occ[..., 1:, :-1, 1:]
-        | occ[..., 1:, 1:, :-1]
-        | occ[..., 1:, 1:, 1:]
+            occ[..., :-1, :-1, :-1]
+            | occ[..., :-1, :-1, 1:]
+            | occ[..., :-1, 1:, :-1]
+            | occ[..., :-1, 1:, 1:]
+            | occ[..., 1:, :-1, :-1]
+            | occ[..., 1:, :-1, 1:]
+            | occ[..., 1:, 1:, :-1]
+            | occ[..., 1:, 1:, 1:]
     )
     return unoccupied
 
