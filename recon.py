@@ -24,10 +24,14 @@ from scannet.visualization.vis_for_demo import Vis_base
 def pcd_to_mesh(xyz, output_file):
     pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(xyz))
     pcd.estimate_normals()
+    output_file_pcd = output_file.with_suffix('.pcd')
+    o3d.io.write_point_cloud(os.fspath(output_file_pcd), pcd)
+
     poisson_mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=8, width=0, scale=1.1,
                                                                                 linear_fit=False)
-    o3d.io.write_triangle_mesh(os.fspath(output_file), poisson_mesh)
-    return poisson_mesh
+    output_file_fn = output_file.with_suffix('.ply')
+    o3d.io.write_triangle_mesh(os.fspath(output_file_fn), poisson_mesh)
+    return output_file_fn
 
 
 def get_bbox(dataset_config, center_label, heading_class_label, heading_residual_label,
@@ -84,6 +88,9 @@ def run(opt, cfg):
         center_list = []
         vector_list = []
 
+        out_scan_dir = opt.output_dir / f'scan_{c.scan_idx}'
+        out_scan_dir.mkdir(exist_ok=True)
+
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
             ins_id = c.object_instance_labels[idx]
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id]
@@ -92,13 +99,13 @@ def run(opt, cfg):
             point_clouds = torch.matmul(point_clouds / c.box_sizes[idx], transform_shapenet)
             print(torch.min(point_clouds), torch.max(point_clouds))
 
+            output_pcd = point_clouds
             point_clouds = point_clouds.T.cuda()
 
             output1, output2, expansion_penalty = network(point_clouds.unsqueeze(0))
 
-            output_pcd = output2[0, :, :3].detach().cpu().numpy()
-            output_pcd_fn = opt.output_dir / 'mesh.ply'
-            pcd_to_mesh(output_pcd, output_pcd_fn)
+            #output_pcd = output2[0, :, :3].detach().cpu().numpy()
+            output_pcd_fn = pcd_to_mesh(output_pcd, out_scan_dir / c.shapenet_ids[idx])
 
             ply_reader = vtk.vtkPLYReader()
             ply_reader.SetFileName(os.fspath(output_pcd_fn))
@@ -123,7 +130,7 @@ def run(opt, cfg):
         scene = Vis_base(scene_points=c.point_clouds, instance_models=instance_models, center_list=center_list,
                          vector_list=vector_list)
         camera_center = np.array([0, -3, 3])
-        scene.visualize(centroid=camera_center, offline=False, save_path=opt.output_dir / 'pred.png')
+        scene.visualize(centroid=camera_center, offline=False, save_path=out_scan_dir / 'pred.png')
 
 
 def parse_args():
