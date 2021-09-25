@@ -1,9 +1,14 @@
 import numpy as np
 import torch
-
 from torch.nn import functional as F
+
 from net_utils.box_util import get_3d_box_cuda
 from net_utils.libs import flip_axis_to_camera_cuda, flip_axis_to_depth_cuda
+
+transform_shapenet = torch.tensor([[0., 0., -1.], [-1., 0., 0.], [0., 1., 0.]])
+roty = torch.tensor([[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]])
+rotz = torch.tensor([[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]])
+transform_shapenet = transform_shapenet @ roty.T
 
 
 @torch.jit.script
@@ -93,8 +98,6 @@ def voxels_from_proposals(cfg, end_points, data, BATCH_PROPOSAL_IDs):
 
     box3d, box_size, pred_centers, heading_angles = gather_bbox(dataset_config, gather_ids_p, *gather_param_p)
 
-    transform_shapenet = torch.tensor([[0., 0., -1.], [-1., 0., 0.], [0., 1., 0.]], device=device)
-
     cos_orientation, sin_orientation = torch.cos(heading_angles), torch.sin(heading_angles)
     zero_orientation, one_orientation = torch.zeros_like(heading_angles), torch.ones_like(heading_angles)
     axis_rectified = torch.stack([torch.stack([cos_orientation, -sin_orientation, zero_orientation], dim=-1),
@@ -104,8 +107,16 @@ def voxels_from_proposals(cfg, end_points, data, BATCH_PROPOSAL_IDs):
     point_clouds = data['point_clouds'][..., 0:3].unsqueeze(1).expand(-1, N_proposals, -1, -1)
     point_clouds = torch.matmul(point_clouds - pred_centers.unsqueeze(2), axis_rectified.transpose(2, 3))
 
-    pcd_cuda = torch.matmul(point_clouds / box_size.unsqueeze(2), transform_shapenet)
+    pcd_cuda = torch.matmul(point_clouds / box_size.unsqueeze(2), transform_shapenet.to(device))
     all_voxels = pointcloud2voxel_fast(pcd_cuda.view(batch_size * N_proposals, -1, 3))
+
+    return all_voxels
+
+
+def voxels_from_scannet(ins_pc, box_centers, box_sizes, axis_rectified):
+    point_clouds = torch.matmul(ins_pc - box_centers, axis_rectified.T)
+    point_clouds = torch.matmul(point_clouds / box_sizes, transform_shapenet.to(point_clouds.device))
+    all_voxels = pointcloud2voxel_fast(point_clouds.unsqueeze(0))
 
     return all_voxels
 

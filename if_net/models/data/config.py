@@ -1,13 +1,13 @@
 import os
 
-import torch
-import torch.distributions as dist
 from torch import nn
 from torchvision import transforms
 
 from .core import Shapes3dDataset
 from .fields import IndexField, PointsField, PointCloudField, CategoryField, ImagesField, VoxelsField
 from .transforms import SubsamplePointcloud, PointcloudNoise, SubsamplePoints
+from ..if_net import IFNet
+
 
 def get_model(cfg, device=None, dataset=None, **kwargs):
     ''' Return the Occupancy Network model.
@@ -27,46 +27,20 @@ def get_model(cfg, device=None, dataset=None, **kwargs):
     encoder_kwargs = cfg['model']['encoder_kwargs']
     encoder_latent_kwargs = cfg['model']['encoder_latent_kwargs']
 
-    decoder = models.decoder_dict[decoder](
-        dim=dim, z_dim=z_dim, c_dim=c_dim,
-        **decoder_kwargs
-    )
-
-    if z_dim != 0:
-        encoder_latent = models.encoder_latent_dict[encoder_latent](
-            dim=dim, z_dim=z_dim, c_dim=c_dim,
-            **encoder_latent_kwargs
-        )
-    else:
-        encoder_latent = None
-
-    if encoder == 'idx':
-        encoder = nn.Embedding(len(dataset), c_dim)
-    elif encoder is not None:
-        encoder = encoder_dict[encoder](
-            c_dim=c_dim,
-            **encoder_kwargs
-        )
-    else:
-        encoder = None
-
-    p0_z = get_prior_z(cfg, device)
-    model = models.OccupancyNetwork(
-        decoder, encoder, encoder_latent, p0_z, device=device
-    )
+    model = IFNet(cfg)
 
     return model
 
 
 def get_trainer(model, optimizer, cfg, device, **kwargs):
-    ''' Returns the trainer object.
+    """ Returns the trainer object.
 
     Args:
         model (nn.Module): the Occupancy Network model
         optimizer (optimizer): pytorch optimizer object
         cfg (dict): imported yaml config
         device (device): pytorch device
-    '''
+    """
     threshold = cfg['test']['threshold']
     out_dir = cfg['training']['out_dir']
     vis_dir = os.path.join(out_dir, 'vis')
@@ -83,12 +57,12 @@ def get_trainer(model, optimizer, cfg, device, **kwargs):
 
 
 def get_data_fields(mode, cfg):
-    ''' Returns the data fields.
+    """ Returns the data fields.
 
     Args:
         mode (str): the mode which is used
         cfg (dict): imported yaml config
-    '''
+    """
     points_transform = SubsamplePoints(cfg['data']['points_subsample'])
     with_transforms = cfg['model']['use_camera']
 
@@ -116,13 +90,13 @@ def get_data_fields(mode, cfg):
 
 # Datasets
 def get_dataset(mode, cfg, return_idx=False, return_category=False):
-    ''' Returns the dataset.
+    """ Returns the dataset.
 
     Args:
         model (nn.Module): the model which is used
         cfg (dict): config dictionary
         return_idx (bool): whether to include an ID field
-    '''
+    """
     # method = cfg['method']
     dataset_type = cfg['data']['dataset']
     dataset_folder = cfg['data']['path']
@@ -165,12 +139,12 @@ def get_dataset(mode, cfg, return_idx=False, return_category=False):
 
 
 def get_inputs_field(mode, cfg):
-    ''' Returns the inputs fields.
+    """ Returns the inputs fields.
 
     Args:
         mode (str): the mode which is used
         cfg (dict): config dictionary
-    '''
+    """
     input_type = cfg['data']['input_type']
     with_transforms = cfg['data']['with_transforms']
 
@@ -221,13 +195,13 @@ def get_inputs_field(mode, cfg):
 
 
 def get_preprocessor(cfg, dataset=None, device=None):
-    ''' Returns preprocessor instance.
+    """ Returns preprocessor instance.
 
     Args:
         cfg (dict): config dictionary
         dataset (dataset): dataset
         device (device): pytorch device
-    '''
+    """
     p_type = cfg['preprocessor']['type']
     # cfg_path = cfg['preprocessor']['config']
     # model_file = cfg['preprocessor']['model_file']

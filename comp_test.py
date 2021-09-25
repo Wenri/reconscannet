@@ -1,27 +1,21 @@
 import argparse
 import os
 from pathlib import Path
-from types import SimpleNamespace
 
 import mcubes
 import numpy as np
 import open3d as o3d
 import torch
 import trimesh
-import vtkmodules.all as vtk
-from torch.utils.data import DataLoader
-from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
 from configs.config_utils import CONFIG
 from configs.scannet_config import ScannetConfig
-from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
-from if_net.models.generation import Generator
+from if_net.models.generator import Generator3D
 from if_net.models.local_model import ShapeNetPoints
 from net_utils.box_util import get_3d_box_cuda
 from net_utils.libs import flip_axis_to_camera_cuda, flip_axis_to_depth_cuda
 from net_utils.utils import initiate_environment
-from net_utils.voxel_util import voxels_from_scannet, transform_shapenet
-from scannet.visualization.vis_for_demo import Vis_base
+from net_utils.voxel_util import pointcloud2voxel_fast
 
 chair_cat = {"02738535", "03002210", "03002711", "03260849", "03376595", "03632729", "03649674", "04099969", "04331277",
              "04373704", "04576002", "20000015", "20000016", "20000018", "20000019", "20000020", "20000021", "20000022",
@@ -114,73 +108,42 @@ def run(opt, cfg):
     network.cuda()
     network.eval()
 
-    dataset = ISCNet_ScanNet(cfg, mode='test')
-    dataloader = DataLoader(dataset=dataset,
-                            num_workers=cfg.config['device']['num_workers'],
-                            batch_size=1,
-                            shuffle=False,
-                            collate_fn=collate_fn,
-                            worker_init_fn=my_worker_init_fn)
+    generator = Generator3D(network,
+                            threshold=cfg.config['data']['threshold'],
+                            resolution0=cfg.config['generation']['resolution_0'],
+                            upsampling_steps=cfg.config['generation']['upsampling_steps'],
+                            sample=cfg.config['generation']['use_sampling'],
+                            refinement_step=cfg.config['generation']['refinement_step'],
+                            simplify_nfaces=cfg.config['generation']['simplify_nfaces'],
+                            preprocessor=None)
 
-    generator = Generator(network, 0.5, 'sample_input', checkpoint=opt.model, resolution=opt.retrieval_res,
-                          batch_points=opt.batch_points)
+    npzf = np.load('sample_input/1007e20d5e811b308351982a6e40cf41/voxelized_point_cloud_32res_300points.npz')
+    occ = np.unpackbits(npzf['compressed_occupancies'])
+    voxels = np.reshape(occ, (npzf['res'],) * 3)
+    npzf = npzf['point_cloud']
 
-    for cur_iter, data in enumerate(dataloader):
-        bid = 0
-        c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
+    out_scan_dir = opt.output_dir / 'sample_input'
+    out_scan_dir.mkdir(exist_ok=True)
 
-        instance_models = []
-        center_list = []
-        vector_list = []
+    pcd_to_mesh(npzf, out_scan_dir / 'voxelized_point_cloud')
 
-        out_scan_dir = opt.output_dir / f'scan_{c.scan_idx}'
-        print(f'scan_{c.scan_idx}')
+    voxels = torch.from_numpy(voxels).float()
 
-        for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if c.shapenet_catids[idx] not in chair_cat:
-                continue
+    vox_to_mesh(voxels.numpy(), out_scan_dir / 'voxelized_mesh')
 
-            out_scan_dir.mkdir(exist_ok=True)
+    npzf = torch.from_numpy(npzf).float().cuda().unsqueeze(0)
+    all_voxels = pointcloud2voxel_fast(npzf)
 
-            ins_id = c.object_instance_labels[idx]
-            ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()
+    vox_to_mesh(all_voxels[0].cpu().numpy(), out_scan_dir / 'all_voxelized_mesh', threshold=0.0)
 
-            voxels = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
-                                         c.axis_rectified[idx].cuda())
+    voxels = voxels.cuda().unsqueeze(0)
+    meshes = generator.generate_from_latent(voxels)
 
-            vox_to_mesh(voxels[0].cpu().numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
+    output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / 'joutout')
 
-            logits = generator.generate_mesh(voxels)
-            meshes = generator.mesh_from_logits(logits)
+    meshes = generator.generate_from_latent(all_voxels)
 
-            # output_pcd = output2[0, :, :3].detach().cpu().numpy()
-            output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_output")
-
-            ply_reader = vtk.vtkPLYReader()
-            ply_reader.SetFileName(os.fspath(output_pcd_fn))
-            ply_reader.Update()
-            # get points from object
-            polydata = ply_reader.GetOutput().GetPoints()
-            # read points using vtk_to_numpy
-            obj_points = torch.from_numpy(vtk_to_numpy(polydata.GetData()))
-            obj_points = torch.matmul(obj_points, transform_shapenet.T) * c.box_sizes[idx]
-            obj_points = torch.matmul(obj_points, c.axis_rectified[idx]) + c.box_centers[idx]
-
-            polydata.SetData(numpy_to_vtk(obj_points.numpy(), deep=True))
-            instance_models.append(ply_reader)
-
-            center_list.append(c.box_centers[idx].numpy())
-
-            vectors = torch.diag(c.box_sizes[idx] / 2.) @ c.axis_rectified[idx]
-            vector_list.append(vectors.numpy())
-
-        if not instance_models:
-            continue
-
-        scene = Vis_base(scene_points=c.point_clouds, instance_models=instance_models, center_list=center_list,
-                         vector_list=vector_list)
-        camera_center = np.array([0, -3, 3])
-        scene.visualize(centroid=camera_center, offline=True, save_path=out_scan_dir / 'pred.png')
+    output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / 'alloutout')
 
 
 def parse_args():
@@ -194,13 +157,10 @@ def parse_args():
                         help='Please specify the demo path.')
     parser.add_argument('--num_points', type=int, default=8192, help='number of points')
     parser.add_argument('--n_primitives', type=int, default=16, help='number of primitives in the atlas')
-    parser.add_argument('--model', type=Path, default=Path('trained_model', 'checkpoint_epoch_999.tar'),
+    parser.add_argument('--model', type=Path, default=Path('trained_model', 'checkpoint_epoch_500.tar'),
                         help='optional reload model path')
     parser.add_argument('--output_dir', type=Path, default=Path('out'),
                         help='output path')
-    parser.add_argument('--res', default=32, type=int)
-    parser.add_argument('--retrieval_res', default=256, type=int)
-    parser.add_argument('--batch_points', default=100000, type=int)
     return parser.parse_args()
 
 

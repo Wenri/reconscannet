@@ -1,11 +1,12 @@
 import os
 from glob import glob
 
-import data_processing.implicit_waterproofing as iw
 import mcubes
 import numpy as np
 import torch
 import trimesh
+
+from ..data_processing import implicit_waterproofing as iw
 
 
 class Generator(object):
@@ -17,7 +18,7 @@ class Generator(object):
         self.device = device
         self.resolution = resolution
         self.resolution = resolution
-        self.checkpoint_path = os.path.dirname(__file__) + '/../experiments/{}/checkpoints/'.format(exp_name)
+        self.checkpoint_path = 'trained_model'
         self.load_checkpoint(checkpoint)
         self.batch_points = batch_points
 
@@ -39,7 +40,7 @@ class Generator(object):
 
     def generate_mesh(self, data):
 
-        inputs = data['inputs'].to(self.device)
+        inputs = data.to(self.device)
 
         logits_list = []
         for points in self.grid_points_split:
@@ -50,31 +51,14 @@ class Generator(object):
         logits = torch.cat(logits_list, dim=0)
 
         return logits.numpy()
-        logits = np.reshape(logits.numpy(), (self.resolution,) * 3)
-
-        # padding to be able to retrieve object close to bounding box bondary
-        logits = np.pad(logits, ((1, 1), (1, 1), (1, 1)), 'constant', constant_values=0)
-        threshold = np.log(self.threshold) - np.log(1. - self.threshold)
-        vertices, triangles = mcubes.marching_cubes(
-            logits, threshold)
-
-        # remove translation due to padding
-        vertices -= 1
-
-        # rescale to original scale
-        step = (self.max - self.min) / (self.resolution - 1)
-        vertices = np.multiply(vertices, step)
-        vertices += [self.min, self.min, self.min]
-
-        mesh = trimesh.Trimesh(vertices, triangles)
-        return mesh
 
     def mesh_from_logits(self, logits):
         logits = np.reshape(logits, (self.resolution,) * 3)
 
         # padding to ba able to retrieve object close to bounding box bondary
-        logits = np.pad(logits, ((1, 1), (1, 1), (1, 1)), 'constant', constant_values=0)
         threshold = np.log(self.threshold) - np.log(1. - self.threshold)
+        logits = np.pad(logits, ((1, 1), (1, 1), (1, 1)), 'constant', constant_values=threshold)
+
         vertices, triangles = mcubes.marching_cubes(
             logits, threshold)
 
@@ -99,7 +83,7 @@ class Generator(object):
             checkpoints = np.sort(checkpoints)
             path = self.checkpoint_path + 'checkpoint_epoch_{}.tar'.format(checkpoints[-1])
         else:
-            path = self.checkpoint_path + 'checkpoint_epoch_{}.tar'.format(checkpoint)
+            path = checkpoint
         print('Loaded checkpoint from: {}'.format(path))
-        checkpoint = torch.load(path)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        state_dict = {k[len('module.'):]: v for k, v in torch.load(path)['model_state_dict'].items()}
+        self.model.load_state_dict(state_dict)

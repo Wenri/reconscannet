@@ -15,14 +15,13 @@ class IFNet(nn.Module):
         self.optim_spec = optim_spec
 
         '''Parameter Configs'''
-        self.z_dim = cfg.config['data']['z_dim']
-        dim = 3
-        self.use_cls_for_completion = cfg.config['data']['use_cls_for_completion']
-        if not cfg.config['data']['skip_propagate']:
-            self.c_dim = self.use_cls_for_completion * cfg.dataset_config.num_class + 128
-        else:
-            self.c_dim = self.use_cls_for_completion * cfg.dataset_config.num_class + cfg.config['data']['c_dim']
-        self.threshold = cfg.config['data']['threshold']
+        self.z_dim = cfg['model']['z_dim']
+        dim = cfg['data']['dim']
+        self.c_dim = cfg['model']['c_dim'] if cfg['data']['skip_propagate'] else 128
+        self.use_cls_for_completion = cfg['data']['use_cls_for_completion']
+        if self.use_cls_for_completion:
+            self.c_dim += cfg.dataset_config.num_class
+        self.threshold = cfg['test']['threshold']
 
         '''Module Configs'''
         if self.z_dim != 0:
@@ -31,15 +30,15 @@ class IFNet(nn.Module):
             self.encoder_latent = None
 
         '''Mount mesh generator'''
-        if 'generation' in cfg.config and cfg.config['generation']['generate_mesh']:
+        if 'generation' in cfg and cfg['generation']['generate_mesh']:
             from .generator import Generator3D
             self.generator = Generator3D(self,
-                                         threshold=cfg.config['data']['threshold'],
-                                         resolution0=cfg.config['generation']['resolution_0'],
-                                         upsampling_steps=cfg.config['generation']['upsampling_steps'],
-                                         sample=cfg.config['generation']['use_sampling'],
-                                         refinement_step=cfg.config['generation']['refinement_step'],
-                                         simplify_nfaces=cfg.config['generation']['simplify_nfaces'],
+                                         threshold=cfg['test']['threshold'],
+                                         resolution0=cfg['generation']['resolution_0'],
+                                         upsampling_steps=cfg['generation']['upsampling_steps'],
+                                         sample=cfg['generation']['use_sampling'],
+                                         refinement_step=cfg['generation']['refinement_step'],
+                                         simplify_nfaces=cfg['generation']['simplify_nfaces'],
                                          preprocessor=None)
 
         # 128**3 res input

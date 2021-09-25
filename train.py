@@ -9,13 +9,16 @@ import torch
 import torch.optim as optim
 
 from configs.config_utils import CONFIG
-from if_net.models.data.config import get_dataset
+from if_net.models.data.config import get_dataset, get_model
 from if_net.models.data.core import collate_remove_none, worker_init_fn
+from if_net.models.training import Trainer
+from utils.checkpoints import CheckpointIO
 
-def run(args, cfg):
+
+def main(args):
     is_cuda = (torch.cuda.is_available() and not args.no_cuda)
     device = torch.device("cuda" if is_cuda else "cpu")
-    cfg = cfg.config
+    cfg = CONFIG(args.config).config
 
     # Set t0
     t0 = time.time()
@@ -61,13 +64,13 @@ def run(args, cfg):
     data_vis = next(iter(vis_loader))
 
     # Model
-    model = config.get_model(cfg, device=device, dataset=train_dataset)
+    model = get_model(cfg, device=device, dataset=train_dataset)
 
     # Intialize training
     npoints = 1000
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     # optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
-    trainer = config.get_trainer(model, optimizer, cfg, device=device)
+    trainer = Trainer(model, exp_name='if_net_scannet', optimizer='Adam', device=device)
 
     checkpoint_io = CheckpointIO(out_dir, model=model, optimizer=optimizer)
     try:
@@ -120,45 +123,6 @@ def run(args, cfg):
                 print('[Epoch %02d] it=%03d, loss=%.4f'
                       % (epoch_it, it, loss))
 
-            # Visualize output
-            if visualize_every > 0 and (it % visualize_every) == 0:
-                print('Visualizing')
-                trainer.visualize(data_vis)
-
-            # Save checkpoint
-            if (checkpoint_every > 0 and (it % checkpoint_every) == 0):
-                print('Saving checkpoint')
-                checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it,
-                                   loss_val_best=metric_val_best)
-
-            # Backup if necessary
-            if (backup_every > 0 and (it % backup_every) == 0):
-                print('Backup checkpoint')
-                checkpoint_io.save('model_%d.pt' % it, epoch_it=epoch_it, it=it,
-                                   loss_val_best=metric_val_best)
-            # Run validation
-            if validate_every > 0 and (it % validate_every) == 0:
-                eval_dict = trainer.evaluate(val_loader)
-                metric_val = eval_dict[model_selection_metric]
-                print('Validation metric (%s): %.4f'
-                      % (model_selection_metric, metric_val))
-
-                # for k, v in eval_dict.items():
-                #     logger.add_scalar('val/%s' % k, v, it)
-
-                if model_selection_sign * (metric_val - metric_val_best) > 0:
-                    metric_val_best = metric_val
-                    print('New best model (loss %.4f)' % metric_val_best)
-                    checkpoint_io.save('model_best.pt', epoch_it=epoch_it, it=it,
-                                       loss_val_best=metric_val_best)
-
-            # Exit if necessary
-            if exit_after > 0 and (time.time() - t0) >= exit_after:
-                print('Time limit reached. Exiting.')
-                checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it,
-                                   loss_val_best=metric_val_best)
-                exit(3)
-
 
 def parse_args():
     """PARAMETERS"""
@@ -176,13 +140,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
-    cfg = CONFIG(args.config)
-
-    run(args, cfg)
-
-
 if __name__ == '__main__':
     matplotlib.use('Agg')
-    main()
+    main(parse_args())
