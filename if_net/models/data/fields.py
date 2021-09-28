@@ -1,11 +1,13 @@
-import os
 import glob
+import os
 import random
-from PIL import Image
+
 import numpy as np
 import trimesh
-from .core import Field
+from PIL import Image
+
 from external import binvox_rw
+from .core import Field
 
 
 class IndexField(Field):
@@ -265,6 +267,58 @@ class PointCloudField(Field):
         if self.with_transforms:
             data['loc'] = pointcloud_dict['loc'].astype(np.float32)
             data['scale'] = pointcloud_dict['scale'].astype(np.float32)
+
+        if self.transform is not None:
+            data = self.transform(data)
+
+        return data
+
+    def check_complete(self, files):
+        ''' Check if field is complete.
+
+        Args:
+            files: files
+        '''
+        complete = (self.file_name in files)
+        return complete
+
+
+class PartialPointCloudField(Field):
+    """ Partial Point cloud field.
+
+    It provides the field used for point cloud data. These are the points
+    randomly sampled on the mesh.
+
+    Args:
+        file_name (str): file name
+        transform (list): list of transformations applied to data points
+        with_transforms (bool): whether scaling and rotation dat should be
+            provided
+    """
+
+    def __init__(self, file_name, transform=None, with_transforms=False):
+        self.file_name = file_name
+        self.transform = transform
+        self.with_transforms = with_transforms
+        self.is_training = True
+        self.rand = random.Random()
+
+    def load(self, model_path, idx, category):
+        """ Loads the data point.
+
+        Args:
+            model_path (str): path to model
+            idx (int): ID of data point
+            category (int): index of category
+        """
+        file_path = os.path.join(model_path, self.file_name)
+        data_files = glob.glob(
+            os.path.join(file_path, 'seed_[0-9A-Z]-XYZ.npy' if self.is_training else 'render-XYZ.npy'))
+        pointcloud_file = self.rand.choice(data_files)
+
+        data = {
+            None: np.load(pointcloud_file, mmap_mode='r')[:, :3].astype(np.float32),
+        }
 
         if self.transform is not None:
             data = self.transform(data)

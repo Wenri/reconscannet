@@ -29,30 +29,76 @@ class PointcloudNoise(object):
 
 
 class SubsamplePointcloud(object):
-    ''' Point cloud subsampling transformation class.
+    """ Point cloud subsampling transformation class.
 
     It subsamples the point cloud data.
 
     Args:
         N (int): number of points to be subsampled
-    '''
+    """
 
     def __init__(self, N):
         self.N = N
+        self.rand = np.random.default_rng()
 
     def __call__(self, data):
-        ''' Calls the transformation.
+        """ Calls the transformation.
 
         Args:
             data (dict): data dictionary
-        '''
+        """
         data_out = data.copy()
         points = data[None]
-        normals = data['normals']
+        total = points.shape[0]
 
-        indices = np.random.randint(points.shape[0], size=self.N)
+        indices = self.rand.permutation(total)
+        if indices.shape[0] < self.N:
+            indices = np.concatenate([indices, self.rand.integers(total, size=self.N - total)])
+        indices = indices[:self.N]
+
         data_out[None] = points[indices, :]
-        data_out['normals'] = normals[indices, :]
+
+        normals = data.get('normals')
+        if normals is not None:
+            data_out['normals'] = normals[indices, :]
+
+        return data_out
+
+
+class SubselectPointcloud(object):
+    """ Point cloud subsampling transformation class.
+
+    It subsamples the point cloud data.
+
+    Args:
+        N (int): number of points to be subsampled
+    """
+
+    def __init__(self, N):
+        self.N = N
+        self.rand = np.random.default_rng()
+
+    def __call__(self, data):
+        """ Calls the transformation.
+
+        Args:
+            data (dict): data dictionary
+        """
+        data_out = data.copy()
+        points = data[None]
+        total = points.shape[0]
+
+        if total < self.N:
+            indices = self.rand.permutation(total)
+            indices = np.concatenate([indices, self.rand.integers(total, size=self.N - total)])
+        else:
+            indices = slice(self.N)
+
+        data_out[None] = points[indices, :]
+
+        normals = data.get('normals')
+        if normals is not None:
+            data_out['normals'] = normals[indices, :]
 
         return data_out
 

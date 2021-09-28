@@ -2,12 +2,15 @@ from __future__ import division
 
 import os
 from glob import glob
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.optim as optim
-from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
+
+from export_scannet_pts import vox_to_mesh
+from net_utils.voxel_util import pointcloud2voxel_fast
 
 
 class Trainer(object):
@@ -32,7 +35,7 @@ class Trainer(object):
     def train_step(self, batch):
         self.model.train()
         self.optimizer.zero_grad()
-        loss = self.compute_loss(batch)
+        loss, _ = self.compute_loss(batch)
         loss.backward()
         self.optimizer.step()
 
@@ -41,21 +44,23 @@ class Trainer(object):
     def compute_loss(self, batch):
         device = self.device
 
-        p = batch.get('grid_coords').to(device)
-        occ = batch.get('occupancies').to(device)
-        inputs = batch.get('inputs').to(device)
+        partial = batch.get('partial').to(device)
+        p = batch.get('points').to(device)
+        occ = batch.get('points.occ').to(device)
+        voxel_gt = batch.get('voxels').to(device)
+        voxel_grids = pointcloud2voxel_fast(partial)
 
-        # General points
-        logits = self.model(p, inputs)
-        loss_i = F.binary_cross_entropy_with_logits(
-            logits, occ,
-            reduction='none')  # out = (B,num_points) by componentwise comparing vecots of size num_samples:
-        # l(logits[n],occ[n]) for each n in B. i.e. l(logits[n],occ[n]) is vector of size num_points again.
+        # self.visualize(Path('debug'), voxel_grids, voxel_gt)
+        input_features = self.model.infer_c(partial.transpose(1, 2))
 
-        loss = loss_i.sum(
-            -1).mean()  # loss_i summed over all #num_samples samples -> out = (B,1) and mean over batch -> out = (1)
+        return self.model.compute_loss(input_features_for_completion=input_features,
+                                       input_points_for_completion=p,
+                                       input_points_occ_for_completion=occ,
+                                       voxel_grids=voxel_grids)
 
-        return loss
+    def visualize(self, out_scan_dir, voxel_grids, voxel_gt):
+        vox_to_mesh(voxel_grids[0].cpu().numpy(), out_scan_dir / 'voxel_grids', threshold=0.5)
+        vox_to_mesh(voxel_gt[0].cpu().numpy(), out_scan_dir / 'voxel_gt', threshold=0.0)
 
     def save_checkpoint(self, epoch):
         path = self.checkpoint_path + 'checkpoint_epoch_{}.tar'.format(epoch)

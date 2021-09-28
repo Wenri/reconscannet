@@ -88,7 +88,7 @@ class Shapes3dDataset(data.Dataset):
 
             self.models += [
                 {'category': c, 'model': m}
-                for m in models_c
+                for m in models_c if os.path.exists(os.path.join(subpath, m, 'model'))
             ]
 
     def __len__(self):

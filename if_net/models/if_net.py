@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from external.common import make_3d_grid
-from .encoder_latent import Encoder_Latent
+from .encoder import Encoder_Latent, PointNetfeat
 from .layers import CResnetBlockConv1d, CResnetBlockConv3d
 
 
@@ -18,6 +18,9 @@ class IFNet(nn.Module):
         self.z_dim = cfg['model']['z_dim']
         dim = cfg['data']['dim']
         self.c_dim = cfg['model']['c_dim'] if cfg['data']['skip_propagate'] else 128
+
+        self.encoder_input = PointNetfeat(self.c_dim)
+
         self.use_cls_for_completion = cfg['data']['use_cls_for_completion']
         if self.use_cls_for_completion:
             self.c_dim += cfg.dataset_config.num_class
@@ -130,7 +133,7 @@ class IFNet(nn.Module):
         return out
 
     def compute_loss(self, input_features_for_completion, input_points_for_completion, input_points_occ_for_completion,
-                     cls_codes_for_completion, voxel_grids, export_shape=False):
+                     voxel_grids, cls_codes_for_completion=None, export_shape=False):
         """
         Compute loss for OccNet
         :param input_features_for_completion (N_B x D): Number of bounding boxes x Dimension of proposal feature.
@@ -241,3 +244,6 @@ class IFNet(nn.Module):
         )
 
         return p0_z
+
+    def infer_c(self, points):
+        return self.encoder_input(points)

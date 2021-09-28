@@ -8,18 +8,18 @@ import csv
 import os
 import sys
 
-try:
-    import numpy as np
-except:
-    print("Failed to import numpy package.")
-    sys.exit(-1)
+import numpy as np
 
 try:
     from plyfile import PlyData, PlyElement
-except:
+except ImportError:
     print("Please install the module 'plyfile' for PLY i/o, e.g.")
     print("pip install plyfile")
     sys.exit(-1)
+
+chair_cat = {"02738535", "03002210", "03002711", "03260849", "03376595", "03632729", "03649674", "04099969",
+             "04331277", "04373704", "04576002", "20000015", "20000016", "20000018", "20000019", "20000020",
+             "20000021", "20000022", "20000023", "20000024", "20000025", "20000026", "20000027", "03001627"}
 
 
 def represents_int(s):

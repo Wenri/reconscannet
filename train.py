@@ -47,12 +47,12 @@ def main(args):
     val_dataset = get_dataset('val', cfg)
 
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size, num_workers=4, shuffle=True,
+        train_dataset, batch_size=batch_size, num_workers=16, shuffle=True,
         collate_fn=collate_remove_none,
-        worker_init_fn=worker_init_fn)
+        worker_init_fn=worker_init_fn, prefetch_factor=10)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=10, num_workers=4, shuffle=False,
+        val_dataset, batch_size=10, num_workers=8, shuffle=False,
         collate_fn=collate_remove_none,
         worker_init_fn=worker_init_fn)
 

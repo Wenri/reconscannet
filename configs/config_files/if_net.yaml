@@ -21,7 +21,7 @@ data:
   n_views: 24
   pointcloud_file: pointcloud.npz
   pointcloud_chamfer_file: pointcloud.npz
-  pointcloud_n: 256
+  pointcloud_n: 2688
   pointcloud_target_n: 1024
   pointcloud_noise: 0.05
   voxels_file: 'model.binvox'
@@ -36,13 +36,13 @@ model:
   encoder_kwargs: {}
   encoder_latent_kwargs: {}
   multi_gpu: false
-  c_dim: 512
+  c_dim: 1024
   z_dim: 64
   use_camera: false
   dmc_weight_prior: 10.
 training:
   out_dir:  out/default
-  batch_size: 64
+  batch_size: 200
   print_every: 10
   visualize_every: 2000
   checkpoint_every: 1000

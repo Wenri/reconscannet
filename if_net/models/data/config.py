@@ -1,11 +1,10 @@
-import os
-
 from torch import nn
 from torchvision import transforms
 
 from .core import Shapes3dDataset
-from .fields import IndexField, PointsField, PointCloudField, CategoryField, ImagesField, VoxelsField
-from .transforms import SubsamplePointcloud, PointcloudNoise, SubsamplePoints
+from .fields import IndexField, PointsField, PointCloudField, CategoryField, ImagesField, VoxelsField, \
+    PartialPointCloudField
+from .transforms import SubsamplePointcloud, PointcloudNoise, SubsamplePoints, SubselectPointcloud
 from ..if_net import IFNet
 
 
@@ -32,30 +31,6 @@ def get_model(cfg, device=None, dataset=None, **kwargs):
     return model
 
 
-def get_trainer(model, optimizer, cfg, device, **kwargs):
-    """ Returns the trainer object.
-
-    Args:
-        model (nn.Module): the Occupancy Network model
-        optimizer (optimizer): pytorch optimizer object
-        cfg (dict): imported yaml config
-        device (device): pytorch device
-    """
-    threshold = cfg['test']['threshold']
-    out_dir = cfg['training']['out_dir']
-    vis_dir = os.path.join(out_dir, 'vis')
-    input_type = cfg['data']['input_type']
-
-    trainer = training.Trainer(
-        model, optimizer,
-        device=device, input_type=input_type,
-        vis_dir=vis_dir, threshold=threshold,
-        eval_sample=cfg['training']['eval_sample'],
-    )
-
-    return trainer
-
-
 def get_data_fields(mode, cfg):
     """ Returns the data fields.
 
@@ -65,25 +40,29 @@ def get_data_fields(mode, cfg):
     """
     points_transform = SubsamplePoints(cfg['data']['points_subsample'])
     with_transforms = cfg['model']['use_camera']
+    partial_transform = transforms.Compose([
+        SubselectPointcloud(cfg['data']['pointcloud_n']),
+        PointcloudNoise(cfg['data']['pointcloud_noise'])
+    ])
+    fields = {
+        'points': PointsField(cfg['data']['points_file'], points_transform, with_transforms=with_transforms,
+                              unpackbits=cfg['data']['points_unpackbits']),
+        # 'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
+        'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms)
+    }
 
-    fields = {}
-    fields['points'] = PointsField(
-        cfg['data']['points_file'], points_transform,
-        with_transforms=with_transforms,
-        unpackbits=cfg['data']['points_unpackbits'],
-    )
+    voxels_file = cfg['data']['voxels_file']
+    if voxels_file is not None:
+        fields['voxels'] = VoxelsField(voxels_file)
 
     if mode in ('val', 'test'):
         points_iou_file = cfg['data']['points_iou_file']
-        voxels_file = cfg['data']['voxels_file']
         if points_iou_file is not None:
             fields['points_iou'] = PointsField(
                 points_iou_file,
                 with_transforms=with_transforms,
                 unpackbits=cfg['data']['points_unpackbits'],
             )
-        if voxels_file is not None:
-            fields['voxels'] = VoxelsField(voxels_file)
 
     return fields
 

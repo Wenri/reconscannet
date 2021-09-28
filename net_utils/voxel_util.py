@@ -118,7 +118,7 @@ def voxels_from_scannet(ins_pc, box_centers, box_sizes, axis_rectified):
     point_clouds = torch.matmul(point_clouds / box_sizes, transform_shapenet.to(point_clouds.device))
     all_voxels = pointcloud2voxel_fast(point_clouds.unsqueeze(0))
 
-    return all_voxels
+    return all_voxels, point_clouds
 
 
 def pc2voxel_test():
