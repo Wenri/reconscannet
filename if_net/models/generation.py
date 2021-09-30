@@ -17,9 +17,9 @@ class Generator(object):
         self.threshold = threshold
         self.device = device
         self.resolution = resolution
-        self.resolution = resolution
         self.checkpoint_path = 'trained_model'
-        self.load_checkpoint(checkpoint)
+        if checkpoint is not None:
+            self.load_checkpoint(checkpoint)
         self.batch_points = batch_points
 
         self.min = -0.5
@@ -31,26 +31,24 @@ class Generator(object):
         a = self.max + self.min
         b = self.max - self.min
 
-        grid_coords = 2 * grid_points - a
+        grid_coords = grid_points - a
         grid_coords = grid_coords / b
 
         grid_coords = torch.from_numpy(grid_coords).to(self.device, dtype=torch.float)
         grid_coords = torch.reshape(grid_coords, (1, len(grid_points), 3)).to(self.device)
         self.grid_points_split = torch.split(grid_coords, self.batch_points, dim=1)
 
-    def generate_mesh(self, data):
-
-        inputs = data.to(self.device)
+    def generate_mesh(self, *inputs):
 
         logits_list = []
         for points in self.grid_points_split:
             with torch.no_grad():
-                logits = self.model(points, inputs)
-            logits_list.append(logits.squeeze(0).detach().cpu())
+                logits = self.model(points, *inputs)
+            logits_list.append(logits.squeeze(0))
 
         logits = torch.cat(logits_list, dim=0)
 
-        return logits.numpy()
+        return logits
 
     def mesh_from_logits(self, logits):
         logits = np.reshape(logits, (self.resolution,) * 3)

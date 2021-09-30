@@ -47,10 +47,10 @@ class Trainer(object):
         partial = batch.get('partial').to(device)
         p = batch.get('points').to(device)
         occ = batch.get('points.occ').to(device)
-        voxel_gt = batch.get('voxels').to(device)
+        # voxel_gt = batch.get('voxels').to(device)
         voxel_grids = pointcloud2voxel_fast(partial)
 
-        # self.visualize(Path('debug'), voxel_grids, voxel_gt)
+        # self.visualize(Path('debug'), voxel_grids, p, occ)
         input_features = self.model.infer_c(partial.transpose(1, 2))
 
         return self.model.compute_loss(input_features_for_completion=input_features,
@@ -58,9 +58,12 @@ class Trainer(object):
                                        input_points_occ_for_completion=occ,
                                        voxel_grids=voxel_grids)
 
-    def visualize(self, out_scan_dir, voxel_grids, voxel_gt):
+    def visualize(self, out_scan_dir, voxel_grids, p, occ):
         vox_to_mesh(voxel_grids[0].cpu().numpy(), out_scan_dir / 'voxel_grids', threshold=0.5)
-        vox_to_mesh(voxel_gt[0].cpu().numpy(), out_scan_dir / 'voxel_gt', threshold=0.0)
+
+        mesh_pts = p[0][occ[0] > 0]
+        voxel_occ = pointcloud2voxel_fast(mesh_pts.unsqueeze(0))
+        vox_to_mesh(voxel_occ[0].cpu().numpy(), out_scan_dir / 'voxel_occ', threshold=0.0)
 
     def save_checkpoint(self, epoch):
         path = self.checkpoint_path + 'checkpoint_epoch_{}.tar'.format(epoch)

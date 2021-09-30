@@ -12,12 +12,12 @@ class PointNetfeat(nn.Module):
     def __init__(self, feat_dim):
         super(PointNetfeat, self).__init__()
         self.feat_dim = feat_dim
-        self.conv1 = torch.nn.Conv1d(3, 64, 1)
-        self.conv2 = torch.nn.Conv1d(64, 128, 1)
-        self.conv3 = torch.nn.Conv1d(128, feat_dim, 1)
+        self.conv1 = torch.nn.Conv1d(3, 128, 1)
+        self.conv2 = torch.nn.Conv1d(128, 256, 1)
+        self.conv3 = torch.nn.Conv1d(256, feat_dim, 1)
 
-        self.bn1 = torch.nn.BatchNorm1d(64)
-        self.bn2 = torch.nn.BatchNorm1d(128)
+        self.bn1 = torch.nn.BatchNorm1d(128)
+        self.bn2 = torch.nn.BatchNorm1d(256)
         self.bn3 = torch.nn.BatchNorm1d(feat_dim)
 
     def forward(self, x):

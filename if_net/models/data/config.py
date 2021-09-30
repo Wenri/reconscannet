@@ -51,11 +51,11 @@ def get_data_fields(mode, cfg):
         'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms)
     }
 
-    voxels_file = cfg['data']['voxels_file']
-    if voxels_file is not None:
+    voxels_file = cfg['data'].get('voxels_file')
+    if voxels_file:
         fields['voxels'] = VoxelsField(voxels_file)
 
-    if mode in ('val', 'test'):
+    if mode in {'val', 'test'}:
         points_iou_file = cfg['data']['points_iou_file']
         if points_iou_file is not None:
             fields['points_iou'] = PointsField(

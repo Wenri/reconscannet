@@ -115,8 +115,8 @@ def voxels_from_proposals(cfg, end_points, data, BATCH_PROPOSAL_IDs):
 
 def voxels_from_scannet(ins_pc, box_centers, box_sizes, axis_rectified):
     point_clouds = torch.matmul(ins_pc - box_centers, axis_rectified.T)
-    point_clouds = torch.matmul(point_clouds / box_sizes, transform_shapenet.to(point_clouds.device))
-    all_voxels = pointcloud2voxel_fast(point_clouds.unsqueeze(0))
+    point_clouds = torch.matmul(point_clouds / box_sizes, transform_shapenet.to(point_clouds.device)).unsqueeze(0)
+    all_voxels = pointcloud2voxel_fast(point_clouds)
 
     return all_voxels, point_clouds
 

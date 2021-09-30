@@ -76,7 +76,7 @@ class SubselectPointcloud(object):
 
     def __init__(self, N):
         self.N = N
-        self.rand = np.random.default_rng()
+        self._rand = np.random.default_rng()
 
     def __call__(self, data):
         """ Calls the transformation.
@@ -89,8 +89,8 @@ class SubselectPointcloud(object):
         total = points.shape[0]
 
         if total < self.N:
-            indices = self.rand.permutation(total)
-            indices = np.concatenate([indices, self.rand.integers(total, size=self.N - total)])
+            indices = self._rand.permutation(total)
+            indices = np.concatenate([indices, self._rand.integers(total, size=self.N - total)])
         else:
             indices = slice(self.N)
 

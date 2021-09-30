@@ -6,7 +6,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 import torch
-import torch.optim as optim
+from adabelief_pytorch import AdaBelief
 
 from configs.config_utils import CONFIG
 from if_net.models.data.config import get_dataset, get_model
@@ -68,14 +68,15 @@ def main(args):
 
     # Intialize training
     npoints = 1000
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    # optimizer = optim.Adam(model.parameters(), lr=1e-4)
     # optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
+    optimizer = AdaBelief(model.parameters(), lr=1e-4)
     trainer = Trainer(model, exp_name='if_net_scannet', optimizer='Adam', device=device)
 
     checkpoint_io = CheckpointIO(out_dir, model=model, optimizer=optimizer)
     try:
         load_dict = checkpoint_io.load('model.pt')
-    except FileExistsError:
+    except FileNotFoundError:
         load_dict = dict()
     epoch_it = load_dict.get('epoch_it', -1)
     it = load_dict.get('it', -1)
@@ -109,6 +110,8 @@ def main(args):
     print(model)
     print('Total number of parameters: %d' % nparameters)
 
+    print('Total dataset length: %d' % len(train_dataset))
+
     while True:
         epoch_it += 1
         #     scheduler.step()
@@ -122,6 +125,15 @@ def main(args):
             if print_every > 0 and (it % print_every) == 0:
                 print('[Epoch %02d] it=%03d, loss=%.4f'
                       % (epoch_it, it, loss))
+
+        # Save checkpoint
+        print('Saving checkpoint')
+        checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
+
+        # Backup if necessary
+        if backup_every > 0 and (epoch_it % backup_every) == 0:
+            print('Backup checkpoint')
+            checkpoint_io.save('model_%d.pt' % epoch_it, epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
 
 
 def parse_args():

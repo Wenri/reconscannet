@@ -13,24 +13,19 @@ from configs.config_utils import CONFIG
 from configs.scannet_config import ScannetConfig
 from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
 from export_scannet_pts import tri_to_mesh, vox_to_mesh, get_bbox
-from if_net.models.generation import Generator
-from if_net.models.local_model import ShapeNetPoints
+from if_net.models.data.config import get_model
+from if_net.models.generator import Generator3D
 from net_utils.utils import initiate_environment
 from net_utils.voxel_util import voxels_from_scannet, transform_shapenet
 from scannet.scannet_utils import chair_cat
 from scannet.visualization.vis_for_demo import Vis_base
+from utils.checkpoints import CheckpointIO
 
 
 def run(opt, cfg):
-    network = ShapeNetPoints()
+    weight_file = Path(cfg.config['weight'])
 
-    if opt.model != '':
-        state_dict = {k[len('module.'):]: v for k, v in torch.load(opt.model)['model_state_dict'].items()}
-        network.load_state_dict(state_dict)
-        print("Previous weight loaded ")
-
-    network.cuda()
-    network.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     dataset = ISCNet_ScanNet(cfg, mode='test')
     dataloader = DataLoader(dataset=dataset,
@@ -40,8 +35,21 @@ def run(opt, cfg):
                             collate_fn=collate_fn,
                             worker_init_fn=my_worker_init_fn)
 
-    generator = Generator(network, 0.5, 'sample_input', checkpoint=opt.model, resolution=opt.retrieval_res,
-                          batch_points=opt.batch_points)
+    network = get_model(cfg.config, device=device, dataset=dataset)
+    checkpoint_io = CheckpointIO(os.fspath(weight_file.parent), model=network)
+
+    try:
+        load_dict = checkpoint_io.load(weight_file.name)
+    except FileNotFoundError:
+        load_dict = dict()
+    epoch_it = load_dict.get('epoch_it', -1)
+    it = load_dict.get('it', -1)
+
+    network.cuda()
+    network.eval()
+
+    generator = Generator3D(network, threshold=0.2, resolution0=opt.retrieval_res / 4,
+                            points_batch_size=opt.batch_points)
 
     for cur_iter, data in enumerate(dataloader):
         bid = 0
@@ -63,13 +71,13 @@ def run(opt, cfg):
             ins_id = c.object_instance_labels[idx]
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()
 
-            voxels = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
-                                         c.axis_rectified[idx].cuda())
+            voxels, ins_pc = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
+                                                 c.axis_rectified[idx].cuda())
 
             vox_to_mesh(voxels[0].cpu().numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
 
-            logits = generator.generate_mesh(voxels)
-            meshes = generator.mesh_from_logits(logits)
+            features = network.infer_c(ins_pc.transpose(1, 2))
+            meshes = generator.generate_mesh(features, cls_codes=None, voxel_grid=voxels)[0]
 
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()
             output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_output")
@@ -105,7 +113,7 @@ def parse_args():
     """PARAMETERS"""
     base_dir = Path(__file__).parent
     parser = argparse.ArgumentParser('Instance Scene Completion.')
-    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'ISCNet_test.yaml',
+    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'if_net_test.yaml',
                         help='configure file for training or testing.')
     parser.add_argument('--mode', type=str, default='train', help='train, test or demo.')
     parser.add_argument('--demo_path', type=Path, default=base_dir / 'demo' / 'inputs' / 'scene0549_00.off',

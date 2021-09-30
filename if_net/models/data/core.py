@@ -1,5 +1,7 @@
 import logging
 import os
+import random
+from pathlib import Path
 
 import numpy as np
 import yaml
@@ -53,7 +55,7 @@ class Shapes3dDataset(data.Dataset):
         self.fields = fields
         self.no_except = no_except
         self.transform = transform
-
+        self._rand = random.Random()
         # If categories is None, use all subfolders
         if categories is None:
             categories = os.listdir(dataset_folder)
@@ -86,22 +88,30 @@ class Shapes3dDataset(data.Dataset):
             with open(split_file, 'r') as f:
                 models_c = f.read().split('\n')
 
-            self.models += [
-                {'category': c, 'model': m}
-                for m in models_c if os.path.exists(os.path.join(subpath, m, 'model'))
-            ]
+            self.models += [{'category': c, 'model': m} for m in models_c]
+
+        self._valid_map = list(self.update_valid())
+
+    def update_valid(self):
+        for i, m in enumerate(self.models):
+            subpath = Path(self.dataset_folder, m['category'], m['model'], 'model')
+            if subpath.is_dir():
+                yield i
 
     def __len__(self):
-        ''' Returns the length of the dataset.
-        '''
+        """ Returns the length of the dataset.
+        """
+        self._valid_map = list(self.update_valid())
+        self._rand.shuffle(self._valid_map)
         return len(self.models)
 
     def __getitem__(self, idx):
-        ''' Returns an item of the dataset.
+        """ Returns an item of the dataset.
 
         Args:
             idx (int): ID of data point
-        '''
+        """
+        idx = self._valid_map[idx % len(self._valid_map)]
         category = self.models[idx]['category']
         model = self.models[idx]['model']
         c_idx = self.metadata[category]['idx']
@@ -140,11 +150,11 @@ class Shapes3dDataset(data.Dataset):
         return self.models[idx]
 
     def test_model_complete(self, category, model):
-        ''' Tests if model is complete.
+        """ Tests if model is complete.
 
         Args:
             model (str): modelname
-        '''
+        """
         model_path = os.path.join(self.dataset_folder, category, model)
         files = os.listdir(model_path)
         for field_name, field in self.fields.items():

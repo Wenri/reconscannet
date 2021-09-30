@@ -301,7 +301,7 @@ class PartialPointCloudField(Field):
         self.transform = transform
         self.with_transforms = with_transforms
         self.is_training = True
-        self.rand = random.Random()
+        self._rand = random.Random()
 
     def load(self, model_path, idx, category):
         """ Loads the data point.
@@ -314,7 +314,7 @@ class PartialPointCloudField(Field):
         file_path = os.path.join(model_path, self.file_name)
         data_files = glob.glob(
             os.path.join(file_path, 'seed_[0-9A-Z]-XYZ.npy' if self.is_training else 'render-XYZ.npy'))
-        pointcloud_file = self.rand.choice(data_files)
+        pointcloud_file = self._rand.choice(data_files)
 
         data = {
             None: np.load(pointcloud_file, mmap_mode='r')[:, :3].astype(np.float32),

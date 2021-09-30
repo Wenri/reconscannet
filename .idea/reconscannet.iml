@@ -3,6 +3,18 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/datasets" />
+      <excludeFolder url="file://$MODULE_DIR$/external/librender/build" />
+      <excludeFolder url="file://$MODULE_DIR$/if_net/experiments/if_net_scannet/summary" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/emd/build" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/emd/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/emd/emd.egg-info" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/expansion_penalty/build" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/expansion_penalty/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/expansion_penalty/expansion_penalty.egg-info" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/MDS/build" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/MDS/dist" />
+      <excludeFolder url="file://$MODULE_DIR$/msn/MDS/MDS.egg-info" />
+      <excludeFolder url="file://$MODULE_DIR$/out" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

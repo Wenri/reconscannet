@@ -216,3 +216,4 @@ datasets/
 runs/
 temp/
 out/
+/if_net/experiments/if_net_scannet/summary/
