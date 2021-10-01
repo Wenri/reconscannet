@@ -7,6 +7,8 @@ import numpy as np
 import yaml
 from torch.utils import data
 
+from scannet.scannet_utils import chair_cat
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,8 +96,8 @@ class Shapes3dDataset(data.Dataset):
 
     def update_valid(self):
         for i, m in enumerate(self.models):
-            subpath = Path(self.dataset_folder, m['category'], m['model'], 'model')
-            if subpath.is_dir():
+            subpath = Path(self.dataset_folder, m['category'], m['model'], 'model', 'render-XYZ.npy')
+            if m['category'] in chair_cat and subpath.exists():
                 yield i
 
     def __len__(self):
@@ -125,8 +127,8 @@ class Shapes3dDataset(data.Dataset):
             except Exception as ex:
                 if self.no_except:
                     logger.warn(
-                        'Error occured when loading field %s of model %s'
-                        % (field_name, model)
+                        'Error occured when loading field %s of model %s: %s'
+                        % (field_name, model, str(ex))
                     )
                     return None
                 else:

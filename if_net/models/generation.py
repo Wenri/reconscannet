@@ -26,7 +26,7 @@ class Generator(object):
         self.max = 0.5
 
         grid_points = iw.create_grid_points_from_bounds(self.min, self.max, self.resolution)
-        grid_points[:, 0], grid_points[:, 2] = grid_points[:, 2], grid_points[:, 0].copy()
+        # grid_points[:, 0], grid_points[:, 2] = grid_points[:, 2], grid_points[:, 0].copy()
 
         a = self.max + self.min
         b = self.max - self.min
