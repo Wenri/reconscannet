@@ -91,8 +91,8 @@ class IFNet(nn.Module):
             x = x.transpose(1, 3).unsqueeze(1)
 
             p_features = features
-            p = p.unsqueeze(1).unsqueeze(1)
-            p = 2 * torch.cat([p + d for d in self.displacments], dim=2)  # (B,1,7,num_samples,3)
+            p = 2 * p.unsqueeze(1).unsqueeze(1)
+            p = torch.cat([p + d for d in self.displacments], dim=2)  # (B,1,7,num_samples,3)
             feature_0 = F.grid_sample(x, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
 
             net = self.conv_in(x, c)
@@ -133,7 +133,7 @@ class IFNet(nn.Module):
         return out
 
     def compute_loss(self, input_features_for_completion, input_points_for_completion, input_points_occ_for_completion,
-                     voxel_grids, cls_codes_for_completion=None, export_shape=False):
+                     voxel_grids, cls_codes_for_completion=None, export_shape=False, balance_weight=False):
         """
         Compute loss for OccNet
         :param input_features_for_completion (N_B x D): Number of bounding boxes x Dimension of proposal feature.
@@ -166,7 +166,6 @@ class IFNet(nn.Module):
         '''Decode to occupancy voxels.'''
         logits = self(input_points_for_completion, z, input_features_for_completion, voxel_grids)
 
-        balance_weight = False
         if balance_weight:
             num_pos = torch.sum(input_points_occ_for_completion, keepdim=True, dim=-1)
             num_pos[num_pos == 0] = 1e-6

@@ -6,7 +6,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 import torch
-from adabelief_pytorch import AdaBelief
+from torch import optim
 
 from configs.config_utils import CONFIG
 from if_net.models.data.config import get_dataset, get_model
@@ -67,11 +67,11 @@ def main(args):
     model = get_model(cfg, device=device, dataset=train_dataset)
 
     # Intialize training
-    npoints = 1000
-    # optimizer = optim.Adam(model.parameters(), lr=1e-4)
     # optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
-    optimizer = AdaBelief(model.parameters(), lr=1e-4)
-    trainer = Trainer(model, exp_name='if_net_scannet', optimizer='Adam', device=device)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    # optimizer = AdaBelief(model.parameters(), lr=1e-4)
+    trainer = Trainer(model, exp_name='if_net_scannet', optimizer=optimizer, device=device,
+                      balance_weight=cfg['training']['balance_weight'])
 
     checkpoint_io = CheckpointIO(out_dir, model=model, optimizer=optimizer)
     try:
