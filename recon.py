@@ -71,8 +71,8 @@ def run(opt, cfg):
             ins_id = c.object_instance_labels[idx]
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()
 
-            voxels, ins_pc = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
-                                                 c.axis_rectified[idx].cuda())
+            voxels, ins_pc, overscan = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
+                                                           c.axis_rectified[idx].cuda())
 
             vox_to_mesh(voxels[0].cpu().numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
 
@@ -89,7 +89,7 @@ def run(opt, cfg):
             polydata = ply_reader.GetOutput().GetPoints()
             # read points using vtk_to_numpy
             obj_points = torch.from_numpy(vtk_to_numpy(polydata.GetData()))
-            obj_points = torch.matmul(obj_points, transform_shapenet.T) * c.box_sizes[idx]
+            obj_points = torch.matmul(obj_points * overscan.cpu(), transform_shapenet.T) * c.box_sizes[idx]
             obj_points = torch.matmul(obj_points, c.axis_rectified[idx]) + c.box_centers[idx]
 
             polydata.SetData(numpy_to_vtk(obj_points.numpy(), deep=True))
