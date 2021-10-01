@@ -112,7 +112,7 @@ def parse_args():
                         help='Please specify the demo path.')
     parser.add_argument('--num_points', type=int, default=8192, help='number of points')
     parser.add_argument('--n_primitives', type=int, default=16, help='number of primitives in the atlas')
-    parser.add_argument('--model', type=Path, default=Path('trained_model', 'checkpoint_epoch_999.tar'),
+    parser.add_argument('--model', type=Path, default=Path('trained_model', 'checkpoint_epoch_1700.tar'),
                         help='optional reload model path')
     parser.add_argument('--output_dir', type=Path, default=Path('out'),
                         help='output path')
