@@ -2,11 +2,9 @@ from __future__ import division
 
 import os
 from glob import glob
-from pathlib import Path
 
 import numpy as np
 import torch
-import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 from export_scannet_pts import vox_to_mesh
@@ -14,16 +12,10 @@ from net_utils.voxel_util import pointcloud2voxel_fast
 
 
 class Trainer(object):
-    def __init__(self, model, device, exp_name, optimizer='Adam'):
+    def __init__(self, model, device, exp_name, optimizer, balance_weight=False):
         self.model = model.to(device)
         self.device = device
-        if optimizer == 'Adam':
-            self.optimizer = optim.Adam(self.model.parameters(), lr=1e-4)
-        if optimizer == 'Adadelta':
-            self.optimizer = optim.Adadelta(self.model.parameters())
-        if optimizer == 'RMSprop':
-            self.optimizer = optim.RMSprop(self.model.parameters(), momentum=0.9)
-
+        self.optimizer = optimizer
         self.exp_path = os.path.dirname(__file__) + '/../experiments/{}/'.format(exp_name)
         self.checkpoint_path = self.exp_path + 'checkpoints/'.format(exp_name)
         if not os.path.exists(self.checkpoint_path):
@@ -31,6 +23,7 @@ class Trainer(object):
             os.makedirs(self.checkpoint_path)
         self.writer = SummaryWriter(self.exp_path + 'summary'.format(exp_name))
         self.val_min = None
+        self.balance_weight = balance_weight
 
     def train_step(self, batch):
         self.model.train()
@@ -56,7 +49,7 @@ class Trainer(object):
         return self.model.compute_loss(input_features_for_completion=input_features,
                                        input_points_for_completion=p,
                                        input_points_occ_for_completion=occ,
-                                       voxel_grids=voxel_grids)
+                                       voxel_grids=voxel_grids, balance_weight=self.balance_weight)
 
     def visualize(self, out_scan_dir, voxel_grids, p, occ):
         vox_to_mesh(voxel_grids[0].cpu().numpy(), out_scan_dir / 'voxel_grids', threshold=0.5)

@@ -48,7 +48,7 @@ def run(opt, cfg):
     network.cuda()
     network.eval()
 
-    generator = Generator3D(network, threshold=0.2, resolution0=opt.retrieval_res / 4,
+    generator = Generator3D(network, threshold=0.5, resolution0=opt.retrieval_res / 4,
                             points_batch_size=opt.batch_points)
 
     for cur_iter, data in enumerate(dataloader):
