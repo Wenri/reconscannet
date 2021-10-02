@@ -1,22 +1,20 @@
-import trimesh
-import numpy as np
+import argparse
+import glob
 import multiprocessing as mp
 from multiprocessing import Pool
-import glob
-import os
-import argparse
+
+import numpy as np
+import trimesh
+
 
 def create_voxel_off(path):
-
     pc_path = path + '/voxelized_point_cloud_{}res_{}points.npz'.format(args.res, args.num_points)
     off_path = path + '/voxelized_point_cloud_{}res_{}points.off'.format(args.res, args.num_points)
 
     pc = np.load(pc_path)['point_cloud']
 
-
-    trimesh.Trimesh(vertices = pc , faces = []).export(off_path)
+    trimesh.Trimesh(vertices=pc, faces=[]).export(off_path)
     print('Finished: {}'.format(path))
-
 
 
 if __name__ == '__main__':

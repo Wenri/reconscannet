@@ -1,13 +1,15 @@
-import trimesh
-import numpy as np
-import os
+import argparse
 import glob
 import multiprocessing as mp
-from multiprocessing import Pool
-from functools import partial
+import os
 import traceback
+from functools import partial
+from multiprocessing import Pool
+
+import numpy as np
+import trimesh
+
 import voxels
-import argparse
 
 
 def voxelize(in_path, res):
@@ -45,4 +47,4 @@ if __name__ == '__main__':
     ROOT = 'shapenet/data'
 
     p = Pool(mp.cpu_count())
-    p.map(partial(voxelize, res=args.res), glob.glob( ROOT + '/*/*/'))
+    p.map(partial(voxelize, res=args.res), glob.glob(ROOT + '/*/*/'))
