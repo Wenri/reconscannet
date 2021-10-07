@@ -1,6 +1,6 @@
 method: ISCNet
 seed: 10
-weight: out/nobalance/model_100.pt
+weight: out/nobalance2/model.pt
 device:
   use_gpu: True
   gpu_ids: '1'
