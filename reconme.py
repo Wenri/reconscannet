@@ -13,6 +13,7 @@ from configs.config_utils import CONFIG
 from configs.scannet_config import ScannetConfig
 from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
 from export_scannet_pts import tri_to_mesh, vox_to_mesh, get_bbox
+from if_net.data_processing.voxelized_pointcloud_sampling import PointCloud2VoxelKDTree
 from if_net.models.generation import Generator
 from if_net.models.local_model import ShapeNetPoints
 from net_utils.utils import initiate_environment
@@ -43,6 +44,8 @@ def run(opt, cfg):
     generator = Generator(network, 0.5, 'sample_input', checkpoint=opt.model, resolution=opt.retrieval_res,
                           batch_points=opt.batch_points)
 
+    voxgen = PointCloud2VoxelKDTree()
+
     for cur_iter, data in enumerate(dataloader):
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
@@ -63,12 +66,14 @@ def run(opt, cfg):
             ins_id = c.object_instance_labels[idx]
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()
 
-            voxels, _, overscan = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
-                                                      c.axis_rectified[idx].cuda())
+            voxels_ref, pc, overscan = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
+                                                           c.axis_rectified[idx].cuda())
+            voxels = voxgen((pc[0] / overscan).cpu().numpy())
+            voxels = torch.from_numpy(voxels).float()
 
-            vox_to_mesh(voxels[0].cpu().numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
+            vox_to_mesh(voxels.numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
 
-            logits = generator.generate_mesh(voxels)
+            logits = generator.generate_mesh(voxels.unsqueeze(0).cuda())
             meshes = generator.mesh_from_logits(logits.detach().cpu().numpy())
 
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()

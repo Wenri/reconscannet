@@ -1,16 +1,36 @@
-import implicit_waterproofing as iw
-from scipy.spatial import cKDTree as KDTree
-import numpy as np
-import trimesh
-from glob import glob
-import os
-import multiprocessing as mp
-from multiprocessing import Pool
 import argparse
+import multiprocessing as mp
+import os
 import random
 import traceback
+from glob import glob
+from multiprocessing import Pool
+
+import numpy as np
+import trimesh
+from scipy.spatial import cKDTree as KDTree
+
+from . import implicit_waterproofing as iw
 
 ROOT = 'shapenet/data/'
+
+
+class PointCloud2VoxelKDTree:
+    def __init__(self, res=32, grid_size=1.):
+        half_size = grid_size / 2.
+        grid_points = iw.create_grid_points_from_bounds(-half_size, half_size, res)
+        self.kdtree = KDTree(grid_points)
+        self.grid_len = len(grid_points)
+        self.res = res
+
+    def __call__(self, point_cloud):
+        occupancies = np.zeros(self.grid_len, dtype=np.int8)
+
+        _, idx = self.kdtree.query(point_cloud)
+        occupancies[idx] = 1
+        occupancies.shape = (self.res,) * 3
+        return occupancies
+
 
 def voxelized_pointcloud_sampling(path):
     try:
@@ -21,10 +41,8 @@ def voxelized_pointcloud_sampling(path):
             return
         off_path = path + '/isosurf_scaled.off'
 
-
         mesh = trimesh.load(off_path)
         point_cloud = mesh.sample(args.num_points)
-
 
         occupancies = np.zeros(len(grid_points), dtype=np.int8)
 
@@ -33,12 +51,13 @@ def voxelized_pointcloud_sampling(path):
 
         compressed_occupancies = np.packbits(occupancies)
 
-
-        np.savez(out_file, point_cloud=point_cloud, compressed_occupancies = compressed_occupancies, bb_min = bb_min, bb_max = bb_max, res = args.res)
+        np.savez(out_file, point_cloud=point_cloud, compressed_occupancies=compressed_occupancies, bb_min=bb_min,
+                 bb_max=bb_max, res=args.res)
         print('Finished {}'.format(path))
 
     except Exception as err:
         print('Error with {}: {}'.format(path, traceback.format_exc()))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -50,11 +69,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
     bb_min = -0.5
     bb_max = 0.5
-
-
 
     grid_points = iw.create_grid_points_from_bounds(bb_min, bb_max, args.res)
     kdtree = KDTree(grid_points)
