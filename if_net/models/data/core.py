@@ -7,42 +7,40 @@ import numpy as np
 import yaml
 from torch.utils import data
 
-from scannet.scannet_utils import chair_cat
-
 logger = logging.getLogger(__name__)
 
 
 # Fields
 class Field(object):
-    ''' Data fields class.
-    '''
+    """ Data fields class.
+    """
 
     def load(self, data_path, idx, category):
-        ''' Loads a data point.
+        """ Loads a data point.
 
         Args:
             data_path (str): path to data file
             idx (int): index of data point
             category (int): index of category
-        '''
+        """
         raise NotImplementedError
 
     def check_complete(self, files):
-        ''' Checks if set is complete.
+        """ Checks if set is complete.
 
         Args:
             files: files
-        '''
+        """
         raise NotImplementedError
 
 
 class Shapes3dDataset(data.Dataset):
-    ''' 3D Shapes dataset class.
-    '''
+    """ 3D Shapes dataset class.
+    """
 
     def __init__(self, dataset_folder, fields, split=None,
                  categories=None, no_except=True, transform=None):
-        ''' Initialization of the the 3D shape dataset.
+        """ Initialization of the the 3D shape dataset.
 
         Args:
             dataset_folder (str): dataset folder
@@ -51,7 +49,7 @@ class Shapes3dDataset(data.Dataset):
             categories (list): list of categories to use
             no_except (bool): no exception
             transform (callable): transformation applied to data points
-        '''
+        """
         # Attributes
         self.dataset_folder = dataset_folder
         self.fields = fields
@@ -97,7 +95,7 @@ class Shapes3dDataset(data.Dataset):
     def update_valid(self):
         for i, m in enumerate(self.models):
             subpath = Path(self.dataset_folder, m['category'], m['model'], 'model', 'render-XYZ.npy')
-            if m['category'] in chair_cat and subpath.exists():
+            if subpath.exists():  # and m['category'] in chair_cat
                 yield i
 
     def __len__(self):
@@ -169,20 +167,20 @@ class Shapes3dDataset(data.Dataset):
 
 
 def collate_remove_none(batch):
-    ''' Collater that puts each data field into a tensor with outer dimension
+    """ Collater that puts each data field into a tensor with outer dimension
         batch size.
 
     Args:
         batch: batch
-    '''
+    """
 
     batch = list(filter(lambda x: x is not None, batch))
     return data.dataloader.default_collate(batch)
 
 
 def worker_init_fn(worker_id):
-    ''' Worker init function to ensure true randomness.
-    '''
+    """ Worker init function to ensure true randomness.
+    """
     random_data = os.urandom(4)
     base_seed = int.from_bytes(random_data, byteorder="big")
     np.random.seed(base_seed + worker_id)
