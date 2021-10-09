@@ -123,6 +123,13 @@ def voxels_from_scannet(ins_pc, box_centers, box_sizes, axis_rectified, overscan
     return all_voxels, point_clouds, overscan
 
 
+def points_from_scannet(ins_pc, box_centers, box_sizes, axis_rectified):
+    point_clouds = torch.matmul(ins_pc - box_centers, axis_rectified.T)
+    point_clouds = torch.matmul(point_clouds / box_sizes, transform_shapenet.to(point_clouds.device))
+
+    return point_clouds
+
+
 def pc2voxel_test():
     p = torch.rand(1, 1, 3) - 0.5
     x = pointcloud2voxel_fast(p)

@@ -12,12 +12,13 @@ import trimesh
 from torch.utils.data import DataLoader
 
 from configs.config_utils import CONFIG
+from configs.path_config import PathConfig
 from configs.scannet_config import ScannetConfig
 from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
 from net_utils.box_util import get_3d_box_cuda
 from net_utils.libs import flip_axis_to_camera_cuda, flip_axis_to_depth_cuda
 from net_utils.utils import initiate_environment
-from net_utils.voxel_util import voxels_from_scannet, roty
+from net_utils.voxel_util import voxels_from_scannet, points_from_scannet, roty
 from scannet.scannet_utils import chair_cat
 from scannet.visualization.vis_for_demo import Vis_base
 
@@ -129,6 +130,45 @@ def get_bbox(dataset_config, center_label, heading_class_label, heading_residual
     return kwargs
 
 
+def get_shapenet_obj_mesh(path_config, cat_id, model_id):
+    obj_path = path_config.ShapeNetv2_path / cat_id / model_id / 'models' / 'model_normalized.obj'
+    assert obj_path.exists()
+
+    obj_mesh = trimesh.load(obj_path, force='mesh')
+    obj_mesh.vertices = obj_mesh.vertices @ roty.T.numpy()
+
+    obj_min, obj_max = np.min(obj_mesh.vertices, axis=0), np.max(obj_mesh.vertices, axis=0)
+    obj_ctr = (obj_min + obj_max) / 2
+    obj_mesh.vertices -= obj_ctr
+    obj_scale = obj_max - obj_min
+    # obj_boxsize = c.box_sizes[idx] @ transform_shapenet
+    # obj_scale /= np.abs(obj_boxsize)
+    obj_mesh.vertices /= obj_scale
+
+    obj_min, obj_max = np.min(obj_mesh.vertices, axis=0), np.max(obj_mesh.vertices, axis=0)
+    obj_mesh.vertices /= np.max(obj_max - obj_min)
+
+    return obj_mesh
+
+
+def get_scannet_mesh(path_config, scene_name):
+    scene_folder = path_config.metadata_root / 'scans' / scene_name
+    meta_file = scene_folder / (scene_name + '.txt')
+    mesh_file = scene_folder / (scene_name + '_vh_clean.ply')
+
+    with meta_file.open('r') as f:
+        for line in f.readlines():
+            if 'axisAlignment' in line:
+                axis_align_matrix = np.asarray(line.rstrip().strip('axisAlignment = ').split(' '), dtype=np.float_)
+                break
+    axis_align_matrix.shape = (4, 4)
+
+    mesh = trimesh.load_mesh(mesh_file)
+    mesh.apply_transform(axis_align_matrix)
+
+    return mesh
+
+
 def run(opt, cfg):
     dataset = ISCNet_ScanNet(cfg, mode='test')
     dataloader = DataLoader(dataset=dataset,
@@ -137,8 +177,8 @@ def run(opt, cfg):
                             shuffle=False,
                             collate_fn=collate_fn,
                             worker_init_fn=my_worker_init_fn)
+    path_config = PathConfig('scannet')
 
-    shapenetv2_path = Path('ShapeNetCore.v2')
     for cur_iter, data in enumerate(dataloader):
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
@@ -146,27 +186,28 @@ def run(opt, cfg):
         instance_models = []
         center_list = []
         vector_list = []
+        scan_idx = c.scan_idx.item()
 
-        out_scan_dir = opt.output_dir / f'scan_{c.scan_idx}'
-        print(f'scan_{c.scan_idx}')
+        out_scan_dir = opt.output_dir / f'scan_{scan_idx}'
+        print(f'scan_{scan_idx}')
 
-        for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if c.shapenet_catids[idx] not in chair_cat:
-                continue
-            obj_path = shapenetv2_path / c.shapenet_catids[idx] / c.shapenet_ids[
-                idx] / 'models' / 'model_normalized.obj'
-            assert obj_path.exists()
+        instance_indices = [idx for idx in c.box_label_mask.nonzero(as_tuple=True)[0]
+                            if c.shapenet_catids[idx] in chair_cat]
 
-            obj_mesh = trimesh.load(obj_path, force='mesh')
+        if not instance_indices:
+            continue
 
+        scan_mesh = get_scannet_mesh(path_config, scene_name=dataset.split[scan_idx]['scan'].parent.name)
+        scan_old_vert = torch.from_numpy(scan_mesh.vertices).float().cuda()
+
+        for idx in instance_indices:
             out_scan_dir.mkdir(exist_ok=True)
 
             ins_id = c.object_instance_labels[idx]
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()
 
-            voxels, pc_normed, overscan = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(),
-                                                              c.box_sizes[idx].cuda(),
-                                                              c.axis_rectified[idx].cuda())
+            scannet_transfer = (c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(), c.axis_rectified[idx].cuda())
+            voxels, pc_normed, overscan = voxels_from_scannet(ins_pc, *scannet_transfer)
 
             np.savez(out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input.npz", pc=ins_pc.cpu().numpy(),
                      pc_normed=pc_normed[0].cpu().numpy(),
@@ -174,22 +215,17 @@ def run(opt, cfg):
                      overscan=overscan.cpu().numpy())
 
             write_pointcloud(out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_partial_pc.ply",
-                             pc_normed[0].cpu().numpy() / overscan.cpu().numpy())
+                             (pc_normed[0] / overscan).cpu().numpy())
 
-            obj_mesh.vertices = obj_mesh.vertices @ roty.T.numpy()
-
-            obj_min, obj_max = np.min(obj_mesh.vertices, axis=0), np.max(obj_mesh.vertices, axis=0)
-            obj_ctr = (obj_min + obj_max) / 2
-            obj_mesh.vertices -= obj_ctr
-            obj_scale = obj_max - obj_min
-            # obj_boxsize = c.box_sizes[idx] @ transform_shapenet
-            # obj_scale /= np.abs(obj_boxsize)
-            obj_mesh.vertices /= obj_scale
-
-            obj_min, obj_max = np.min(obj_mesh.vertices, axis=0), np.max(obj_mesh.vertices, axis=0)
-            obj_mesh.vertices /= np.max(obj_max - obj_min)
-
+            obj_mesh = get_shapenet_obj_mesh(path_config, c.shapenet_catids[idx], c.shapenet_ids[idx])
             tri_to_mesh(obj_mesh, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_scan2cad.ply")
+
+            scan_pts = points_from_scannet(scan_old_vert, *scannet_transfer) / overscan
+            scan_vert_mask = torch.all(torch.abs(scan_pts) <= 0.7, dim=1)
+            scan_face_mask = torch.all(scan_vert_mask[scan_mesh.faces], dim=1)
+            scan_mesh.vertices = scan_pts.cpu().numpy()
+            scan_submesh, = scan_mesh.submesh(np.nonzero(scan_face_mask.cpu().numpy()))
+            tri_to_mesh(scan_submesh, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_scan.ply")
 
         if not instance_models:
             continue

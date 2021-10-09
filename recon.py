@@ -13,6 +13,7 @@ from configs.config_utils import CONFIG
 from configs.scannet_config import ScannetConfig
 from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
 from export_scannet_pts import tri_to_mesh, vox_to_mesh, get_bbox
+from external.libsimplify import simplify_mesh
 from if_net.models.data.config import get_model
 from if_net.models.generator import Generator3D
 from net_utils.utils import initiate_environment
@@ -78,6 +79,7 @@ def run(opt, cfg):
 
             features = network.infer_c(ins_pc.transpose(1, 2))
             meshes = generator.generate_mesh(features, cls_codes=None, voxel_grid=voxels)[0]
+            meshes = simplify_mesh(meshes)
 
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()
             output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_output")

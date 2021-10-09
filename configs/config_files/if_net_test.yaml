@@ -3,7 +3,7 @@ seed: 10
 weight: out/balance/model.pt
 device:
   use_gpu: True
-  gpu_ids: '0'
+  gpu_ids: '1'
   num_workers: 0
 data:
   dataset: scannet
