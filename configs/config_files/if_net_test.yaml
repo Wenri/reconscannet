@@ -1,9 +1,9 @@
 method: ISCNet
 seed: 10
-weight: out/balance/model.pt
+weight: trained_model/model_90.pt
 device:
   use_gpu: True
-  gpu_ids: '1'
+  gpu_ids: '0'
   num_workers: 0
 data:
   dataset: scannet
@@ -53,11 +53,11 @@ test:
   threshold: 0.5
 generation:
   generate_mesh: True
-  resolution_0: 32
+  resolution_0: 64
   upsampling_steps: 0
   use_sampling: False
   refinement_step: 0
-  simplify_nfaces: Null
+  simplify_nfaces: 5000
   dump_threshold: 0.5
   dump_results: True
 demo:

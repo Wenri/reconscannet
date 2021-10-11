@@ -13,7 +13,6 @@ from configs.config_utils import CONFIG
 from configs.scannet_config import ScannetConfig
 from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
 from export_scannet_pts import tri_to_mesh, vox_to_mesh, get_bbox
-from external.libsimplify import simplify_mesh
 from if_net.models.data.config import get_model
 from if_net.models.generator import Generator3D
 from net_utils.utils import initiate_environment
@@ -49,8 +48,10 @@ def run(opt, cfg):
     network.cuda()
     network.eval()
 
-    generator = Generator3D(network, threshold=0.5, resolution0=opt.retrieval_res / 4,
-                            points_batch_size=opt.batch_points)
+    generator = Generator3D(network, points_batch_size=opt.batch_points, threshold=cfg.config['test']['threshold'],
+                            resolution0=cfg.config['generation']['resolution_0'],
+                            simplify_nfaces=cfg.config['generation']['simplify_nfaces'],
+                            refinement_step=cfg.config['generation']['refinement_step'])
 
     for cur_iter, data in enumerate(dataloader):
         bid = 0
@@ -79,7 +80,6 @@ def run(opt, cfg):
 
             features = network.infer_c(ins_pc.transpose(1, 2))
             meshes = generator.generate_mesh(features, cls_codes=None, voxel_grid=voxels)[0]
-            meshes = simplify_mesh(meshes)
 
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()
             output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_output")
@@ -126,8 +126,6 @@ def parse_args():
                         help='optional reload model path')
     parser.add_argument('--output_dir', type=Path, default=Path('out'),
                         help='output path')
-    parser.add_argument('--res', default=32, type=int)
-    parser.add_argument('--retrieval_res', default=256, type=int)
     parser.add_argument('--batch_points', default=100000, type=int)
     return parser.parse_args()
 
