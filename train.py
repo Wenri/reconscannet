@@ -1,12 +1,14 @@
 import argparse
 import os
+import pickle
+import sys
 import time
 from pathlib import Path
 
 import matplotlib
 import numpy as np
 import torch
-from torch import optim
+from adabelief_pytorch import AdaBelief
 
 from configs.config_utils import CONFIG
 from if_net.models.data.config import get_dataset, get_model
@@ -68,15 +70,17 @@ def main(args):
 
     # Intialize training
     # optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    # optimizer = AdaBelief(model.parameters(), lr=1e-4)
+    # optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = AdaBelief(model.parameters(), lr=1e-4)
     trainer = Trainer(model, exp_name='if_net_scannet', optimizer=optimizer, device=device,
+                      warmup_iters=len(train_dataset) - 1,
                       balance_weight=cfg['training']['balance_weight'])
 
     checkpoint_io = CheckpointIO(out_dir, model=model, optimizer=optimizer)
     try:
         load_dict = checkpoint_io.load('model.pt')
-    except FileNotFoundError:
+    except (FileNotFoundError, pickle.UnpicklingError) as e:
+        print('checkpoint_io load err: ', e, file=sys.stderr)
         load_dict = dict()
     epoch_it = load_dict.get('epoch_it', -1)
     it = load_dict.get('it', -1)
@@ -126,6 +130,7 @@ def main(args):
                 print('[Epoch %02d] it=%03d, loss=%.4f'
                       % (epoch_it, it, loss))
 
+        trainer.lr_scheduler = None
         # Save checkpoint
         print('Saving checkpoint')
         checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)

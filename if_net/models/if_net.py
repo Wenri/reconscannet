@@ -233,13 +233,13 @@ class IFNet(nn.Module):
         :return:
         """
         if self.encoder_latent is not None:
-            mean_z, logstd_z = self.encoder_latent(p, occ, c, **kwargs)
+            mean_z, softstd_z = self.encoder_latent(p, occ, c, **kwargs)
         else:
             batch_size = p.size(0)
             mean_z = torch.empty(batch_size, 0).to(device)
-            logstd_z = torch.empty(batch_size, 0).to(device)
+            softstd_z = torch.empty(batch_size, 0).to(device)
 
-        q_z = dist.Normal(mean_z, torch.exp(logstd_z))
+        q_z = dist.Normal(mean_z, softstd_z)
         return q_z
 
     def get_prior_z(self, z_dim, device):

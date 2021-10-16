@@ -11,8 +11,18 @@ from export_scannet_pts import vox_to_mesh
 from net_utils.voxel_util import pointcloud2voxel_fast
 
 
+def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):
+    def f(x):
+        if x >= warmup_iters:
+            return 1
+        alpha = float(x) / warmup_iters
+        return warmup_factor * (1 - alpha) + alpha
+
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, f)
+
+
 class Trainer(object):
-    def __init__(self, model, device, exp_name, optimizer, balance_weight=False):
+    def __init__(self, model, device, exp_name, optimizer, warmup_iters, warmup_factor=1. / 1000, balance_weight=False):
         self.model = model.to(device)
         self.device = device
         self.optimizer = optimizer
@@ -24,6 +34,7 @@ class Trainer(object):
         self.writer = SummaryWriter(self.exp_path + 'summary'.format(exp_name))
         self.val_min = None
         self.balance_weight = balance_weight
+        self.lr_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
     def train_step(self, batch):
         self.model.train()
@@ -31,6 +42,8 @@ class Trainer(object):
         loss, _ = self.compute_loss(batch)
         loss.backward()
         self.optimizer.step()
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
 
         return loss.item()
 
