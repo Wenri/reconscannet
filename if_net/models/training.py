@@ -5,6 +5,7 @@ from glob import glob
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from export_scannet_pts import vox_to_mesh
@@ -55,13 +56,13 @@ class Trainer(object):
         occ = batch.get('points.occ').to(device)
         # voxel_gt = batch.get('voxels').to(device)
         voxel_grids = pointcloud2voxel_fast(partial)
+        cls_codes = F.one_hot(batch.get('category').to(device), num_classes=16)
 
         # self.visualize(Path('debug'), voxel_grids, p, occ)
         input_features = self.model.infer_c(partial.transpose(1, 2))
 
-        return self.model.compute_loss(input_features_for_completion=input_features,
-                                       input_points_for_completion=p,
-                                       input_points_occ_for_completion=occ,
+        return self.model.compute_loss(input_features_for_completion=input_features, cls_codes_for_completion=cls_codes,
+                                       input_points_for_completion=p, input_points_occ_for_completion=occ,
                                        voxel_grids=voxel_grids, balance_weight=self.balance_weight)
 
     def visualize(self, out_scan_dir, voxel_grids, p, occ):

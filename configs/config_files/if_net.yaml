@@ -26,7 +26,7 @@ data:
   pointcloud_noise: 0.05
   # voxels_file: 'model.binvox'
   with_transforms: false
-  use_cls_for_completion: False
+  use_cls_for_completion: True
   skip_propagate: True
 model:
   decoder: simple

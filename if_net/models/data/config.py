@@ -68,7 +68,7 @@ def get_data_fields(mode, cfg):
 
 
 # Datasets
-def get_dataset(mode, cfg, return_idx=False, return_category=False):
+def get_dataset(mode, cfg, return_idx=False):
     """ Returns the dataset.
 
     Args:
@@ -80,6 +80,7 @@ def get_dataset(mode, cfg, return_idx=False, return_category=False):
     dataset_type = cfg['data']['dataset']
     dataset_folder = cfg['data']['path']
     categories = cfg['data']['classes']
+    return_category = cfg['data']['use_cls_for_completion']
 
     # Get split
     splits = {

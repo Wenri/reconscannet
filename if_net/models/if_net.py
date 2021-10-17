@@ -23,7 +23,7 @@ class IFNet(nn.Module):
 
         self.use_cls_for_completion = cfg['data']['use_cls_for_completion']
         if self.use_cls_for_completion:
-            self.c_dim += cfg.dataset_config.num_class
+            self.c_dim += 16
         self.threshold = cfg['test']['threshold']
 
         '''Module Configs'''

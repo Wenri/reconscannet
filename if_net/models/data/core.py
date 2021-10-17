@@ -61,6 +61,7 @@ class Shapes3dDataset(data.Dataset):
             categories = os.listdir(dataset_folder)
             categories = [c for c in categories
                           if os.path.isdir(os.path.join(dataset_folder, c))]
+            categories.sort()
 
         # Read metadata file
         metadata_file = os.path.join(dataset_folder, 'metadata.yaml')
