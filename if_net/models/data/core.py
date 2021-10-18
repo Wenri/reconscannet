@@ -38,8 +38,8 @@ class Shapes3dDataset(data.Dataset):
     """ 3D Shapes dataset class.
     """
 
-    def __init__(self, dataset_folder, fields, split=None,
-                 categories=None, no_except=True, transform=None):
+    def __init__(self, dataset_folder, fields, split=None, categories=None, no_except=False, transform=None,
+                 cat_set=None):
         """ Initialization of the the 3D shape dataset.
 
         Args:
@@ -56,6 +56,7 @@ class Shapes3dDataset(data.Dataset):
         self.no_except = no_except
         self.transform = transform
         self._rand = random.Random()
+        self.cat_set = cat_set
         # If categories is None, use all subfolders
         if categories is None:
             categories = os.listdir(dataset_folder)
@@ -96,7 +97,7 @@ class Shapes3dDataset(data.Dataset):
     def update_valid(self):
         for i, m in enumerate(self.models):
             subpath = Path(self.dataset_folder, m['category'], m['model'], 'model', 'render-XYZ.npy')
-            if subpath.exists():  # and m['category'] in chair_cat
+            if subpath.exists() and (self.cat_set is None or m['category'] in self.cat_set):
                 yield i
 
     def __len__(self):

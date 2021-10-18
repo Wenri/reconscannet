@@ -1,12 +1,14 @@
 import glob
 import os
 import random
+from pathlib import Path
 
 import numpy as np
 import trimesh
 from PIL import Image
 
 from external import binvox_rw
+from net_utils.voxel_util import roty
 from .core import Field
 
 
@@ -331,6 +333,78 @@ class PartialPointCloudField(Field):
         Args:
             files: files
         '''
+        complete = (self.file_name in files)
+        return complete
+
+
+class PartialJesseField(Field):
+    """ Partial Jesse Point cloud field.
+
+    It provides the field used for point cloud data. These are the points
+    randomly sampled on the mesh.
+
+    Args:
+        file_name (str): file name
+        transform (list): list of transformations applied to data points
+        with_transforms (bool): whether scaling and rotation dat should be
+            provided
+    """
+
+    def __init__(self, file_name, transform=None, with_transforms=False):
+        self.file_name = file_name
+        self.transform = transform
+        self.with_transforms = with_transforms
+        self.is_training = True
+        self._rand = random.Random()
+
+    def load(self, model_path, idx, category):
+        """ Loads the data point.
+
+        Args:
+            model_path (str): path to model
+            idx (int): ID of data point
+            category (int): index of category
+        """
+        model_path = Path(model_path)
+        model = model_path.name
+        model_path = model_path.parent
+        category = model_path.name
+        file_path = Path(*model_path.parts[:-2], 'jesse', category, model + '.obj')
+
+        if not file_path.exists():
+            data = {None: np.zeros(shape=(2688, 3), dtype=np.float32), 'valid': np.zeros(shape=(), dtype=np.bool_)}
+        else:
+            pointcloud_file = trimesh.load(file_path)
+
+            # shapenet_path = Path('ShapeNetCore.v2', category, model, 'models', 'model_normalized.obj')
+            # shapenet_file = trimesh.load(shapenet_path, force='mesh')
+            # bb_max, bb_min = np.max(shapenet_file.vertices, axis=0), np.min(shapenet_file.vertices, axis=0)
+            # total_size = (bb_max - bb_min).max()
+            # centers = (bb_min + bb_max) / 2
+            # with shapenet_path.with_suffix('.json').open('r') as f:
+            #     shapenet_json = json.load(f)
+
+            padding = 0
+            total_pc = np.asarray(pointcloud_file.vertices)
+            total_pc /= 1 - padding
+            total_pc = total_pc @ roty.numpy().T
+
+            data = {
+                None: total_pc.astype(np.float32),
+                'valid': np.ones(shape=(), dtype=np.bool_)
+            }
+
+        if self.transform is not None:
+            data = self.transform(data)
+
+        return data
+
+    def check_complete(self, files):
+        """ Check if field is complete.
+
+        Args:
+            files: files
+        """
         complete = (self.file_name in files)
         return complete
 
