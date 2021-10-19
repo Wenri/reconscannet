@@ -50,6 +50,7 @@ class Trainer(object):
 
     def compute_loss(self, batch):
         device = self.device
+        overscan_factor = 0.1
 
         partial = batch.get('partial').to(device)
         p = batch.get('points').to(device)
@@ -58,8 +59,14 @@ class Trainer(object):
         partial_aug = batch.get('partial_aug').to(device)
         partial_aug_valid = batch.get('partial_aug.valid').unsqueeze(-1).unsqueeze(-1).to(device)
         partial_input = torch.where(partial_aug_valid, partial_aug, partial)
+        n_batch = p.shape[0]
 
         voxel_grids = pointcloud2voxel_fast(partial_input)
+        overscan = torch.abs(torch.randn(*partial_aug_valid.shape, device=device)) * overscan_factor
+        offset = (torch.rand(n_batch, 1, 3, device=device) - 0.5) * overscan
+
+        partial_input = (partial_input + offset) / (overscan + 1)
+        p = (p + offset) / (overscan + 1)
 
         cls_codes = batch.get('category')
         if cls_codes is not None:
