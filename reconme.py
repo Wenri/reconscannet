@@ -68,12 +68,15 @@ def run(opt, cfg):
 
             voxels_ref, pc, overscan = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
                                                            c.axis_rectified[idx].cuda())
-            voxels = voxgen((pc[0] / overscan).cpu().numpy())
+            # voxels = voxgen((pc[0] / overscan).cpu().numpy())
+            voxels = voxgen(pc[0].cpu().numpy())
             voxels = torch.from_numpy(voxels).float()
 
             vox_to_mesh(voxels.numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
+            # vox_to_mesh(voxels_ref[0].cpu().numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
 
             logits = generator.generate_mesh(voxels.unsqueeze(0).cuda())
+            # logits = generator.generate_mesh(voxels_ref)
             meshes = generator.mesh_from_logits(logits.detach().cpu().numpy())
 
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()
@@ -86,7 +89,8 @@ def run(opt, cfg):
             polydata = ply_reader.GetOutput().GetPoints()
             # read points using vtk_to_numpy
             obj_points = torch.from_numpy(vtk_to_numpy(polydata.GetData()))
-            obj_points = torch.matmul(obj_points * overscan.cpu(), transform_shapenet.T) * c.box_sizes[idx]
+            # obj_points = torch.matmul(obj_points * overscan.cpu(), transform_shapenet.T) * c.box_sizes[idx]
+            obj_points = torch.matmul(obj_points, transform_shapenet.T) * c.box_sizes[idx]
             obj_points = torch.matmul(obj_points, c.axis_rectified[idx]) + c.box_centers[idx]
 
             polydata.SetData(numpy_to_vtk(obj_points.numpy(), deep=True))
@@ -117,7 +121,7 @@ def parse_args():
                         help='Please specify the demo path.')
     parser.add_argument('--num_points', type=int, default=8192, help='number of points')
     parser.add_argument('--n_primitives', type=int, default=16, help='number of primitives in the atlas')
-    parser.add_argument('--model', type=Path, default=Path('trained_model', 'checkpoint_epoch_1700.tar'),
+    parser.add_argument('--model', type=Path, default=Path('trained_model', 'checkpoint_epoch_1580.tar'),
                         help='optional reload model path')
     parser.add_argument('--output_dir', type=Path, default=Path('out'),
                         help='output path')
