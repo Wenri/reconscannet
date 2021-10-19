@@ -23,7 +23,7 @@ class IFNet(nn.Module):
 
         self.use_cls_for_completion = cfg['data']['use_cls_for_completion']
         if self.use_cls_for_completion:
-            self.c_dim += cfg.dataset_config.num_class
+            self.c_dim += 16
         self.threshold = cfg['test']['threshold']
 
         '''Module Configs'''
@@ -91,7 +91,7 @@ class IFNet(nn.Module):
             x = x.transpose(1, 3).unsqueeze(1)
 
             p_features = features
-            p = 2 * p.unsqueeze(1).unsqueeze(1)
+            p = 2 * p.detach().unsqueeze(1).unsqueeze(1)
             p = torch.cat([p + d for d in self.displacments], dim=2)  # (B,1,7,num_samples,3)
             feature_0 = F.grid_sample(x, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
 
@@ -233,13 +233,13 @@ class IFNet(nn.Module):
         :return:
         """
         if self.encoder_latent is not None:
-            mean_z, logstd_z = self.encoder_latent(p, occ, c, **kwargs)
+            mean_z, softstd_z = self.encoder_latent(p, occ, c, **kwargs)
         else:
             batch_size = p.size(0)
             mean_z = torch.empty(batch_size, 0).to(device)
-            logstd_z = torch.empty(batch_size, 0).to(device)
+            softstd_z = torch.empty(batch_size, 0).to(device)
 
-        q_z = dist.Normal(mean_z, torch.exp(logstd_z))
+        q_z = dist.Normal(mean_z, softstd_z)
         return q_z
 
     def get_prior_z(self, z_dim, device):

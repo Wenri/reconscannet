@@ -60,6 +60,7 @@ class Encoder_Latent(nn.Module):
         self.fc_3 = nn.Linear(256, 128)
         self.fc_mean = nn.Linear(128, z_dim)
         self.fc_logstd = nn.Linear(128, z_dim)
+        self.softplus = torch.nn.Softplus()
 
         if not leaky:
             self.actvn = F.relu
@@ -90,6 +91,6 @@ class Encoder_Latent(nn.Module):
         net = self.pool(net, dim=1)
 
         mean = self.fc_mean(net)
-        logstd = self.fc_logstd(net)
+        softstd = self.softplus(self.fc_logstd(net))
 
-        return mean, logstd
+        return mean, softstd

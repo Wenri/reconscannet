@@ -1,14 +1,14 @@
+import mcubes
+import numpy as np
 import torch
 import torch.optim as optim
-from torch import autograd
-import numpy as np
-from tqdm import trange
 import trimesh
-import mcubes
+from torch import autograd
+from tqdm import trange
+
 from external.common import make_3d_grid
-from external.libsimplify import simplify_mesh
 from external.libmise import MISE
-import time
+from external.libsimplify import simplify_mesh
 
 
 class Generator3D(object):
@@ -117,7 +117,7 @@ class Generator3D(object):
             value_grid = mesh_extractor.to_dense()
 
         # Extract mesh
-        mesh = self.extract_mesh(value_grid, z, c)
+        mesh = self.extract_mesh(value_grid, z, c, **kwargs)
         return mesh
 
     def eval_points(self, p, z, c=None, device='cuda', **kwargs):
@@ -142,7 +142,7 @@ class Generator3D(object):
 
         return occ_hat
 
-    def extract_mesh(self, occ_hat, z, c=None):
+    def extract_mesh(self, occ_hat, z, c=None, **kwargs):
         """ Extracts the mesh from the predicted occupancy grid.
 
         Args:
@@ -172,7 +172,7 @@ class Generator3D(object):
 
         # Estimate normals if needed
         if self.with_normals and not vertices.shape[0] == 0:
-            normals = self.estimate_normals(vertices, z, c)
+            normals = self.estimate_normals(vertices, z, c, **kwargs)
 
         else:
             normals = None
@@ -192,11 +192,11 @@ class Generator3D(object):
 
         # Refine mesh
         if self.refinement_step > 0:
-            self.refine_mesh(mesh, occ_hat, z, c)
+            self.refine_mesh(mesh, occ_hat, z, c, **kwargs)
 
         return mesh
 
-    def estimate_normals(self, vertices, z, c=None, device='cuda'):
+    def estimate_normals(self, vertices, z, c=None, device='cuda', **kwargs):
         ''' Estimates the normals by computing the gradient of the objective.
 
         Args:
@@ -212,7 +212,7 @@ class Generator3D(object):
         for vi in vertices_split:
             vi = vi.unsqueeze(0).to(device)
             vi.requires_grad_()
-            occ_hat = self.model.decode(vi, z, c).logits
+            occ_hat = self.model.decode(vi, z, c, **kwargs).logits
             out = occ_hat.sum()
             out.backward()
             ni = -vi.grad
@@ -223,7 +223,7 @@ class Generator3D(object):
         normals = np.concatenate(normals, axis=0)
         return normals
 
-    def refine_mesh(self, mesh, occ_hat, z, c=None, device='cuda'):
+    def refine_mesh(self, mesh, occ_hat, z, c=None, device='cuda', **kwargs):
         ''' Refines the predicted mesh.
 
         Args:
@@ -266,7 +266,7 @@ class Generator3D(object):
             face_normal = face_normal / \
                           (face_normal.norm(dim=1, keepdim=True) + 1e-10)
             face_value = torch.sigmoid(
-                self.model.decode(face_point.unsqueeze(0), z, c).logits
+                self.model.decode(face_point.unsqueeze(0), z, c, **kwargs).logits
             )
             normal_target = -autograd.grad(
                 [face_value.sum()], [face_point], create_graph=True)[0]

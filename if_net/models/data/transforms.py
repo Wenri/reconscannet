@@ -3,23 +3,23 @@ import numpy as np
 
 # Transforms
 class PointcloudNoise(object):
-    ''' Point cloud noise transformation class.
+    """ Point cloud noise transformation class.
 
     It adds noise to point cloud data.
 
     Args:
         stddev (int): standard deviation
-    '''
+    """
 
     def __init__(self, stddev):
         self.stddev = stddev
 
     def __call__(self, data):
-        ''' Calls the transformation.
+        """ Calls the transformation.
 
         Args:
             data (dictionary): data dictionary
-        '''
+        """
         data_out = data.copy()
         points = data[None]
         noise = self.stddev * np.random.randn(*points.shape)
@@ -104,23 +104,23 @@ class SubselectPointcloud(object):
 
 
 class SubsamplePoints(object):
-    ''' Points subsampling transformation class.
+    """ Points subsampling transformation class.
 
     It subsamples the points data.
 
     Args:
         N (int): number of points to be subsampled
-    '''
+    """
 
     def __init__(self, N):
         self.N = N
 
     def __call__(self, data):
-        ''' Calls the transformation.
+        """ Calls the transformation.
 
         Args:
             data (dictionary): data dictionary
-        '''
+        """
         points = data[None]
         occ = data['occ']
 

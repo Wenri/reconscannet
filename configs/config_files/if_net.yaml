@@ -10,7 +10,7 @@ data:
   dim: 3
   points_file: points.npz
   points_iou_file: points.npz
-  points_subsample: 5000
+  points_subsample: 8000
   points_unpackbits: true
   model_file: model.off
   watertight_file: model_watertight.off
@@ -26,7 +26,7 @@ data:
   pointcloud_noise: 0.05
   # voxels_file: 'model.binvox'
   with_transforms: false
-  use_cls_for_completion: False
+  use_cls_for_completion: True
   skip_propagate: True
 model:
   decoder: simple

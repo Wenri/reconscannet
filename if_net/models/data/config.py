@@ -1,9 +1,10 @@
 from torch import nn
 from torchvision import transforms
 
+from scannet.scannet_utils import chair_cat
 from .core import Shapes3dDataset
 from .fields import IndexField, PointsField, PointCloudField, CategoryField, ImagesField, VoxelsField, \
-    PartialPointCloudField
+    PartialPointCloudField, PartialJesseField
 from .transforms import SubsamplePointcloud, PointcloudNoise, SubsamplePoints, SubselectPointcloud
 from ..if_net import IFNet
 
@@ -48,7 +49,8 @@ def get_data_fields(mode, cfg):
         'points': PointsField(cfg['data']['points_file'], points_transform, with_transforms=with_transforms,
                               unpackbits=cfg['data']['points_unpackbits']),
         # 'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
-        'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms)
+        'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms),
+        'partial_aug': PartialJesseField('model', partial_transform, with_transforms=with_transforms)
     }
 
     voxels_file = cfg['data'].get('voxels_file')
@@ -68,7 +70,7 @@ def get_data_fields(mode, cfg):
 
 
 # Datasets
-def get_dataset(mode, cfg, return_idx=False, return_category=False):
+def get_dataset(mode, cfg, return_idx=False):
     """ Returns the dataset.
 
     Args:
@@ -80,6 +82,8 @@ def get_dataset(mode, cfg, return_idx=False, return_category=False):
     dataset_type = cfg['data']['dataset']
     dataset_folder = cfg['data']['path']
     categories = cfg['data']['classes']
+    return_category = cfg['data']['use_cls_for_completion']
+    cat_set = None if return_category else chair_cat
 
     # Get split
     splits = {
@@ -110,6 +114,7 @@ def get_dataset(mode, cfg, return_idx=False, return_category=False):
             dataset_folder, fields,
             split=split,
             categories=categories,
+            cat_set=cat_set
         )
     else:
         raise ValueError('Invalid dataset "%s"' % cfg['data']['dataset'])
