@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+from pytorch3d.ops import knn_points
 from torch.utils.tensorboard import SummaryWriter
 
 from export_scannet_pts import vox_to_mesh, write_pointcloud
@@ -49,45 +50,57 @@ class Trainer(object):
 
         return loss.item()
 
+    def overscan_aug(self, partial, p, overscan_factor=0.05):
+        device = self.device
+        n_batch = p.shape[0]
+
+        overscan = torch.abs(torch.randn(n_batch, 1, 1, device=device)) * overscan_factor
+        offset = (torch.rand(n_batch, 1, 3, device=device) - 0.5) * overscan
+
+        partial = (partial + offset) / (overscan + 1)
+        p = (p + offset) / (overscan + 1)
+
+        return partial, p
+
     def compute_loss(self, batch):
         device = self.device
-        overscan_factor = 0.05
 
         partial = batch.get('partial').to(device)
         p = batch.get('points').to(device)
         occ = batch.get('points.occ').to(device)
+        full_pc = batch.get('pc').to(device)
         # voxel_gt = batch.get('voxels').to(device)
         partial_aug = batch.get('partial_aug').to(device)
-        partial_aug_valid = batch.get('partial_aug.valid').unsqueeze(-1).unsqueeze(-1).to(device)
-        partial_input = torch.where(partial_aug_valid, partial_aug, partial)
+        partial_aug = self.model.transfer_input(partial_aug)
+        partial_aug_nograd = partial_aug.detach()
+        partial_aug_valid = batch.get('partial_aug.valid').to(device)
+        partial_input = torch.where(partial_aug_valid.unsqueeze(-1).unsqueeze(-1), partial_aug_nograd, partial)
         # partial_input = partial
-        n_batch = p.shape[0]
-
-        overscan = torch.abs(torch.randn(*partial_aug_valid.shape, device=device)) * overscan_factor
-        offset = (torch.rand(n_batch, 1, 3, device=device) - 0.5) * overscan
-
-        partial_input = (partial_input + offset) / (overscan + 1)
-        p = (p + offset) / (overscan + 1)
 
         cls_codes = batch.get('category')
         if cls_codes is not None:
             cls_codes = F.one_hot(cls_codes.to(device), num_classes=16)
 
-        voxel_grids = pointcloud2voxel_fast(partial_input)
-        # self.visualize(Path('debug'), voxel_grids, p, occ, partial_aug)
-        input_features = self.model.infer_c(partial_input.transpose(1, 2))
+        partial_input, p = self.overscan_aug(partial_input, p)
 
-        return self.model.compute_loss(input_features_for_completion=input_features, cls_codes_for_completion=cls_codes,
+        voxel_grids = pointcloud2voxel_fast(partial_input)
+        # self.visualize('debug', voxel_grids, full_pc, partial_aug_nograd)
+
+        input_features = self.model.infer_c(partial_input.transpose(1, 2))
+        l, v = self.model.compute_loss(input_features_for_completion=input_features, cls_codes_for_completion=cls_codes,
                                        input_points_for_completion=p, input_points_occ_for_completion=occ,
                                        voxel_grids=voxel_grids, balance_weight=self.balance_weight)
+        x_nn = knn_points(partial_aug, full_pc, K=1, return_sorted=False).dists[..., 0]
+        l += 1e-3 * torch.sum(x_nn.mean(dim=1) * partial_aug_valid) / torch.sum(partial_aug_valid)
 
-    def visualize(self, out_scan_dir, voxel_grids, p, occ, partial_aug):
+        return l, v
+
+    def visualize(self, out_scan_dir, voxel_grids, full_pc, partial_aug):
+        out_scan_dir = Path(out_scan_dir)
+        voxel_occ = pointcloud2voxel_fast(full_pc)
         for i in range(voxel_grids.shape[0]):
             vox_to_mesh(voxel_grids[i].cpu().numpy(), out_scan_dir / f'{i}_voxel_grids', threshold=0.5)
-
-            mesh_pts = p[i][occ[i] > 0]
-            voxel_occ = pointcloud2voxel_fast(mesh_pts.unsqueeze(0))
-            vox_to_mesh(voxel_occ[0].cpu().numpy(), out_scan_dir / f'{i}_voxel_occ', threshold=0.0)
+            vox_to_mesh(voxel_occ[i].cpu().numpy(), out_scan_dir / f'{i}_voxel_pc', threshold=0.0)
             write_pointcloud(out_scan_dir / f'{i}_partial_pc.ply', partial_aug[i].cpu().numpy())
 
     def save_checkpoint(self, epoch):

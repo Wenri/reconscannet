@@ -1,4 +1,5 @@
 import os
+import sys
 import urllib
 
 import torch
@@ -91,9 +92,14 @@ class CheckpointIO(object):
         # del state_dict['optimizer']
         for k, v in self.module_dict.items():
             if k in state_dict:
-                v.load_state_dict(state_dict[k])
+                try:
+                    v.load_state_dict(state_dict[k])
+                except RuntimeError as e:
+                    print(e, file=sys.stderr)
+                    v.load_state_dict(state_dict[k], strict=False)
+                    break
             else:
-                print('Warning: Could not find %s in checkpoint!' % k)
+                print('Warning: Could not find %s in checkpoint!' % k, file=sys.stderr)
         scalars = {k: v for k, v in state_dict.items()
                    if k not in self.module_dict}
         return scalars
