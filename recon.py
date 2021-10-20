@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -41,7 +42,8 @@ def run(opt, cfg):
     try:
         load_dict = checkpoint_io.load(weight_file.name)
     except FileNotFoundError:
-        load_dict = dict()
+        print('Checkpoint File Not Found Error', file=sys.stderr)
+        return -1
     epoch_it = load_dict.get('epoch_it', -1)
     it = load_dict.get('it', -1)
 
@@ -110,6 +112,8 @@ def run(opt, cfg):
         camera_center = np.array([0, -3, 3])
         scene.visualize(centroid=camera_center, offline=True, save_path=out_scan_dir / 'pred.png')
 
+    return 0
+
 
 def parse_args():
     """PARAMETERS"""
@@ -140,8 +144,8 @@ def main(args):
     cfg.log_string(cfg.config)
     cfg.write_config()
 
-    run(args, cfg)
+    return run(args, cfg)
 
 
 if __name__ == '__main__':
-    main(parse_args())
+    sys.exit(main(parse_args()))

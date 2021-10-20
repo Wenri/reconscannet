@@ -13,51 +13,51 @@ from .core import Field
 
 
 class IndexField(Field):
-    ''' Basic index field.'''
+    """ Basic index field."""
 
     def load(self, model_path, idx, category):
-        ''' Loads the index field.
+        """ Loads the index field.
 
         Args:
             model_path (str): path to model
             idx (int): ID of data point
             category (int): index of category
-        '''
+        """
         return idx
 
     def check_complete(self, files):
-        ''' Check if field is complete.
+        """ Check if field is complete.
 
         Args:
             files: files
-        '''
+        """
         return True
 
 
 class CategoryField(Field):
-    ''' Basic category field.'''
+    """ Basic category field."""
 
     def load(self, model_path, idx, category):
-        ''' Loads the category field.
+        """ Loads the category field.
 
         Args:
             model_path (str): path to model
             idx (int): ID of data point
             category (int): index of category
-        '''
+        """
         return category
 
     def check_complete(self, files):
-        ''' Check if field is complete.
+        """ Check if field is complete.
 
         Args:
             files: files
-        '''
+        """
         return True
 
 
 class ImagesField(Field):
-    ''' Image Field.
+    """ Image Field.
 
     It is the field used for loading images.
 
@@ -67,7 +67,7 @@ class ImagesField(Field):
         extension (str): image extension
         random_view (bool): whether a random view should be used
         with_camera (bool): whether camera data should be provided
-    '''
+    """
 
     def __init__(self, folder_name, transform=None,
                  extension='jpg', random_view=True, with_camera=False):
@@ -78,13 +78,13 @@ class ImagesField(Field):
         self.with_camera = with_camera
 
     def load(self, model_path, idx, category):
-        ''' Loads the data point.
+        """ Loads the data point.
 
         Args:
             model_path (str): path to model
             idx (int): ID of data point
             category (int): index of category
-        '''
+        """
         folder = os.path.join(model_path, self.folder_name)
         files = glob.glob(os.path.join(folder, '*.%s' % self.extension))
         files.sort()
@@ -114,11 +114,11 @@ class ImagesField(Field):
         return data
 
     def check_complete(self, files):
-        ''' Check if field is complete.
+        """ Check if field is complete.
 
         Args:
             files: files
-        '''
+        """
         complete = (self.folder_name in files)
         # TODO: check camera
         return complete
@@ -126,7 +126,7 @@ class ImagesField(Field):
 
 # 3D Fields
 class PointsField(Field):
-    ''' Point Field.
+    """ Point Field.
 
     It provides the field to load point data. This is used for the points
     randomly sampled in the bounding volume of the 3D shape.
@@ -138,7 +138,7 @@ class PointsField(Field):
         with_transforms (bool): whether scaling and rotation data should be
             provided
 
-    '''
+    """
 
     def __init__(self, file_name, transform=None, with_transforms=False, unpackbits=False):
         self.file_name = file_name
@@ -366,12 +366,11 @@ class PartialJesseField(Field):
             category (int): index of category
         """
         model_path = Path(model_path)
-        model = model_path.name
-        model_path = model_path.parent
-        category = model_path.name
-        file_path = Path(*model_path.parts[:-2], 'jesse', category, model + '.obj')
+        model_category = model_path.parent
+        file_path = self.search_model_filename(Path(*model_category.parent.parts[:-1], 'jesse'),
+                                               category=model_category.name, model=model_path.name)
 
-        if not file_path.exists():
+        if not file_path:
             data = {None: np.zeros(shape=(2688, 3), dtype=np.float32), 'valid': np.zeros(shape=(), dtype=np.bool_)}
         else:
             pointcloud_file = trimesh.load(file_path)
@@ -384,9 +383,7 @@ class PartialJesseField(Field):
             # with shapenet_path.with_suffix('.json').open('r') as f:
             #     shapenet_json = json.load(f)
 
-            padding = 0
             total_pc = np.asarray(pointcloud_file.vertices)
-            total_pc /= 1 - padding
             total_pc = total_pc @ roty.numpy().T
 
             data = {
@@ -398,6 +395,17 @@ class PartialJesseField(Field):
             data = self.transform(data)
 
         return data
+
+    @staticmethod
+    def search_model_filename(model_path, category, model):
+        file_path = Path(model_path, category, model + '.obj')
+        if not file_path.is_file():
+            if not file_path.with_suffix('').is_dir():
+                category = '*'
+            file_path = glob.glob(f'{os.fspath(model_path)}/{category}/{model}/*.obj')
+            if file_path:
+                file_path, = file_path
+        return file_path
 
     def check_complete(self, files):
         """ Check if field is complete.

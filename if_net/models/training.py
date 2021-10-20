@@ -2,6 +2,7 @@ from __future__ import division
 
 import os
 from glob import glob
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -72,22 +73,22 @@ class Trainer(object):
         if cls_codes is not None:
             cls_codes = F.one_hot(cls_codes.to(device), num_classes=16)
 
-        # self.visualize(Path('debug'), voxel_grids, p, occ, batch.get('partial_aug'))
         voxel_grids = pointcloud2voxel_fast(partial_input)
+        # self.visualize(Path('debug'), voxel_grids, p, occ, partial_aug)
         input_features = self.model.infer_c(partial_input.transpose(1, 2))
 
         return self.model.compute_loss(input_features_for_completion=input_features, cls_codes_for_completion=cls_codes,
                                        input_points_for_completion=p, input_points_occ_for_completion=occ,
                                        voxel_grids=voxel_grids, balance_weight=self.balance_weight)
 
-    def visualize(self, out_scan_dir, voxel_grids, p, occ, partial_pc):
+    def visualize(self, out_scan_dir, voxel_grids, p, occ, partial_aug):
         for i in range(voxel_grids.shape[0]):
             vox_to_mesh(voxel_grids[i].cpu().numpy(), out_scan_dir / f'{i}_voxel_grids', threshold=0.5)
 
             mesh_pts = p[i][occ[i] > 0]
             voxel_occ = pointcloud2voxel_fast(mesh_pts.unsqueeze(0))
             vox_to_mesh(voxel_occ[0].cpu().numpy(), out_scan_dir / f'{i}_voxel_occ', threshold=0.0)
-            write_pointcloud(out_scan_dir / f'{i}_partial_pc.ply', partial_pc[i].cpu().numpy())
+            write_pointcloud(out_scan_dir / f'{i}_partial_pc.ply', partial_aug[i].cpu().numpy())
 
     def save_checkpoint(self, epoch):
         path = self.checkpoint_path + 'checkpoint_epoch_{}.tar'.format(epoch)

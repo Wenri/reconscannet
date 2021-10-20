@@ -1,7 +1,7 @@
 from torch import nn
 from torchvision import transforms
 
-from scannet.scannet_utils import chair_cat
+from scannet.scannet_utils import chair_cat, table_cat
 from .core import Shapes3dDataset
 from .fields import IndexField, PointsField, PointCloudField, CategoryField, ImagesField, VoxelsField, \
     PartialPointCloudField, PartialJesseField
@@ -84,6 +84,7 @@ def get_dataset(mode, cfg, return_idx=False):
     categories = cfg['data']['classes']
     return_category = cfg['data']['use_cls_for_completion']
     cat_set = None if return_category else chair_cat
+    # cat_set = table_cat
 
     # Get split
     splits = {

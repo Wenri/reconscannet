@@ -88,6 +88,7 @@ class CheckpointIO(object):
             state_dict (dict): State dict of model
         """
 
+        # del state_dict['optimizer']
         for k, v in self.module_dict.items():
             if k in state_dict:
                 v.load_state_dict(state_dict[k])
