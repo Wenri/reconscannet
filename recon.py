@@ -27,7 +27,7 @@ def run(opt, cfg):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    dataset = ISCNet_ScanNet(cfg, mode='test')
+    dataset = ISCNet_ScanNet(cfg, mode='test', split='test')
     dataloader = DataLoader(dataset=dataset,
                             num_workers=cfg.config['device']['num_workers'],
                             batch_size=1,
