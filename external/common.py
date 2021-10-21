@@ -1,7 +1,8 @@
 # import multiprocessing
-import torch
-from external.libkdtree.pykdtree.kdtree import KDTree
 import numpy as np
+import torch
+
+from external.libkdtree.pykdtree.kdtree import KDTree
 
 
 def compute_iou(occ1, occ2):
@@ -35,6 +36,33 @@ def compute_iou(occ1, occ2):
     return iou
 
 
+def compute_iou_cuda(occ1, occ2, thres1=0):
+    ''' Computes the Intersection over Union (IoU) value for two sets of
+    occupancy values.
+
+    Args:
+        occ1 (tensor): first set of occupancy values
+        occ2 (tensor): second set of occupancy values
+    '''
+
+    # Put all data in second dimension
+    # Also works for 1-dimensional data
+    occ1 = occ1.view(occ1.shape[0], -1)
+    occ2 = occ2.view(occ2.shape[0], -1)
+
+    # Convert to boolean values
+    occ1 = (occ1 >= thres1)
+    occ2 = (occ2 >= 0.5)
+
+    # Compute IOU
+    area_union = torch.count_nonzero(occ1 | occ2, dim=-1)
+    area_intersect = torch.count_nonzero(occ1 & occ2, dim=-1)
+
+    iou = (area_intersect / area_union)
+
+    return iou
+
+
 def chamfer_distance(points1, points2, use_kdtree=True, give_id=False):
     ''' Returns the chamfer distance for the sets of points.
 
@@ -57,7 +85,7 @@ def chamfer_distance_naive(points1, points2):
         points1 (numpy array): first point set
         points2 (numpy array): second point set    
     '''
-    assert(points1.size() == points2.size())
+    assert (points1.size() == points2.size())
     batch_size, T, _ = points1.size()
 
     points1 = points1.view(batch_size, T, 1, 3)
@@ -183,9 +211,9 @@ def transform_points(points, transform):
         points (tensor): points tensor
         transform (tensor): transformation matrices
     '''
-    assert(points.size(2) == 3)
-    assert(transform.size(1) == 3)
-    assert(points.size(0) == transform.size(0))
+    assert (points.size(2) == 3)
+    assert (transform.size(1) == 3)
+    assert (points.size(0) == transform.size(0))
 
     if transform.size(2) == 4:
         R = transform[:, :, :3]
@@ -217,9 +245,9 @@ def transform_points_back(points, transform):
         points (tensor): points tensor
         transform (tensor): transformation matrices
     '''
-    assert(points.size(2) == 3)
-    assert(transform.size(1) == 3)
-    assert(points.size(0) == transform.size(0))
+    assert (points.size(2) == 3)
+    assert (transform.size(1) == 3)
+    assert (points.size(0) == transform.size(0))
 
     if transform.size(2) == 4:
         R = transform[:, :, :3]
@@ -293,7 +321,7 @@ def fix_Rt_camera(Rt, loc, scale):
 
     Rt_new = torch.cat([R_new, t_new], dim=2)
 
-    assert(Rt_new.size() == (batch_size, 3, 4))
+    assert (Rt_new.size() == (batch_size, 3, 4))
     return Rt_new
 
 
@@ -309,8 +337,8 @@ def fix_K_camera(K, img_size=137):
     """
     # Unscale and recenter
     scale_mat = torch.tensor([
-        [2./img_size, 0, -1],
-        [0, 2./img_size, -1],
+        [2. / img_size, 0, -1],
+        [0, 2. / img_size, -1],
         [0, 0, 1.],
     ], device=K.device, dtype=K.dtype)
     K_new = scale_mat.view(1, 3, 3) @ K

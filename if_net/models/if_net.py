@@ -133,7 +133,7 @@ class IFNet(nn.Module):
         return out
 
     def compute_loss(self, input_features_for_completion, input_points_for_completion, input_points_occ_for_completion,
-                     voxel_grids, cls_codes_for_completion=None, export_shape=False, balance_weight=False):
+                     voxel_grids, export_shape=False, balance_weight=False):
         """
         Compute loss for OccNet
         :param input_features_for_completion (N_B x D): Number of bounding boxes x Dimension of proposal feature.
@@ -145,9 +145,6 @@ class IFNet(nn.Module):
         """
         device = input_features_for_completion.device
         batch_size = input_features_for_completion.size(0)
-        if self.use_cls_for_completion:
-            cls_codes_for_completion = cls_codes_for_completion.to(device).float()
-            input_features_for_completion = torch.cat([input_features_for_completion, cls_codes_for_completion], dim=-1)
 
         kwargs = {}
         '''Infer latent code z.'''
@@ -256,5 +253,12 @@ class IFNet(nn.Module):
 
         return p0_z
 
-    def infer_c(self, points):
-        return self.encoder_input(points)
+    def infer_c(self, points, cls_codes_for_completion):
+        device = points.device
+        input_features_for_completion = self.encoder_input(points)
+
+        if self.use_cls_for_completion:
+            cls_codes_for_completion = F.one_hot(cls_codes_for_completion.to(device), num_classes=16).float()
+            input_features_for_completion = torch.cat([input_features_for_completion, cls_codes_for_completion], dim=-1)
+
+        return input_features_for_completion

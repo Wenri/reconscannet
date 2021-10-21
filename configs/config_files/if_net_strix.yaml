@@ -1,0 +1,76 @@
+method: onet
+data:
+  dataset: Shapes3D
+  path: data/ShapeNet
+  classes: null
+  train_split: train
+  val_split: val
+  test_split: test
+  dim: 3
+  points_file: points.npz
+  points_iou_file: points.npz
+  points_subsample: 5000
+  points_unpackbits: true
+  pointcloud_file: pointcloud.npz
+  pointcloud_chamfer_file: pointcloud.npz
+  pointcloud_n: 2688
+  pointcloud_target_n: 1024
+  pointcloud_noise: 0.02
+  with_transforms: false
+  use_cls_for_completion: True
+  skip_propagate: True
+model:
+  decoder: simple
+  encoder: resnet18
+  encoder_latent: null
+  decoder_kwargs: {}
+  encoder_kwargs: {}
+  encoder_latent_kwargs: {}
+  multi_gpu: false
+  c_dim: 2048
+  z_dim: 64
+  dmc_weight_prior: 10.
+training:
+  out_dir:  out/strix
+  batch_size: 32
+  print_every: 10
+  visualize_every: 2000
+  checkpoint_every: 1
+  validate_every: 2000
+  backup_every: 10
+  eval_sample: false
+  balance_weight: True
+test:
+  threshold: 0.5
+  eval_mesh: true
+  eval_pointcloud: true
+  model_file: model_best.pt
+generation:
+  batch_size: 100000
+  refinement_step: 0
+  vis_n_outputs: 30
+  generate_mesh: true
+  generate_pointcloud: true
+  generation_dir: generation
+  use_sampling: false
+  resolution_0: 32
+  upsampling_steps: 2
+  simplify_nfaces: null
+  copy_groundtruth: false
+  copy_input: true
+  latent_number: 4
+  latent_H: 8
+  latent_W: 8
+  latent_ny: 2
+  latent_nx: 2
+  latent_repeat: true
+preprocessor:
+  type: null
+  config: ""
+  model_file: null
+log:
+  vis_path: visualization
+  save_results: True
+  vis_step: 100
+  print_step: 10
+  path: out/if_net

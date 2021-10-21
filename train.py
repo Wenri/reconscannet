@@ -9,12 +9,25 @@ import matplotlib
 import numpy as np
 import torch
 from adabelief_pytorch import AdaBelief
+from tqdm import tqdm
 
 from configs.config_utils import CONFIG
 from if_net.models.data.config import get_dataset, get_model
 from if_net.models.data.core import collate_remove_none, worker_init_fn
 from if_net.models.training import Trainer
 from utils.checkpoints import CheckpointIO
+
+
+def evaluate(trainer, val_loader):
+    metric_val = []
+    teval = tqdm(val_loader, unit='images', unit_scale=val_loader.batch_size, file=sys.stdout, dynamic_ncols=True)
+    for batch in teval:
+        val = trainer.eval_step(batch)
+        teval.set_description('[metric val: %.4f]' % (sum(val) / len(val)))
+        metric_val += val
+    metric_val = sum(metric_val) / len(metric_val)
+    print('total metric val:  %.4f' % metric_val)
+    return metric_val
 
 
 def main(args):
@@ -31,15 +44,6 @@ def main(args):
     backup_every = cfg['training']['backup_every']
     exit_after = args.exit_after
 
-    model_selection_metric = cfg['training']['model_selection_metric']
-    if cfg['training']['model_selection_mode'] == 'maximize':
-        model_selection_sign = 1
-    elif cfg['training']['model_selection_mode'] == 'minimize':
-        model_selection_sign = -1
-    else:
-        raise ValueError('model_selection_mode must be '
-                         'either maximize or minimize.')
-
     # Output directory
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -54,16 +58,16 @@ def main(args):
         worker_init_fn=worker_init_fn, prefetch_factor=10)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=10, num_workers=8, shuffle=False,
+        val_dataset, batch_size=6, num_workers=8, shuffle=False,
         collate_fn=collate_remove_none,
         worker_init_fn=worker_init_fn)
 
     # For visualizations
-    vis_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=12, shuffle=True,
-        collate_fn=collate_remove_none,
-        worker_init_fn=worker_init_fn)
-    data_vis = next(iter(vis_loader))
+    # vis_loader = torch.utils.data.DataLoader(
+    #     val_dataset, batch_size=12, shuffle=True,
+    #     collate_fn=collate_remove_none,
+    #     worker_init_fn=worker_init_fn)
+    # data_vis = next(iter(vis_loader))
 
     # Model
     model = get_model(cfg, device=device, dataset=train_dataset)
@@ -84,18 +88,9 @@ def main(args):
     epoch_it = load_dict.get('epoch_it', -1)
     it = load_dict.get('it', -1)
     metric_val_best = load_dict.get(
-        'loss_val_best', -model_selection_sign * np.inf)
+        'loss_val_best', -np.inf)
 
-    # Hack because of previous bug in code
-    # TODO: remove, because shouldn't be necessary
-    if metric_val_best == np.inf or metric_val_best == -np.inf:
-        metric_val_best = -model_selection_sign * np.inf
-
-    # TODO: remove this switch
-    # metric_val_best = -model_selection_sign * np.inf
-
-    print('Current best validation metric (%s): %.8f'
-          % (model_selection_metric, metric_val_best))
+    print('Current best validation metric: %.8f' % metric_val_best)
 
     # TODO: reintroduce or remove scheduler?
     # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=4000,
@@ -118,7 +113,6 @@ def main(args):
     # trainer.set_lr(1e-4)
     while True:
         epoch_it += 1
-        #     scheduler.step()
 
         for batch in train_loader:
             it += 1
@@ -138,8 +132,15 @@ def main(args):
 
         # Backup if necessary
         if backup_every > 0 and (epoch_it % backup_every) == 0:
+            metric_val = evaluate(trainer, val_loader)
+            if metric_val > metric_val_best:
+                metric_val_best = metric_val
+                metric_val = '%.4f+' % metric_val
+            else:
+                metric_val = '%.4f' % metric_val
             print('Backup checkpoint')
-            checkpoint_io.save('model_%d.pt' % epoch_it, epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
+            checkpoint_io.save(f'model_{epoch_it}_{metric_val}.pt', epoch_it=epoch_it, it=it,
+                               loss_val_best=metric_val_best)
 
 
 def parse_args():
