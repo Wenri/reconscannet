@@ -38,8 +38,8 @@ class Shapes3dDataset(data.Dataset):
     """ 3D Shapes dataset class.
     """
 
-    def __init__(self, dataset_folder, fields, split=None, categories=None, no_except=False, transform=None,
-                 cat_set=None, is_training=True):
+    def __init__(self, dataset_folder, fields, split=None, cat_set=None, no_except=False, transform=None,
+                 is_training=True):
         """ Initialization of the the 3D shape dataset.
 
         Args:
@@ -58,12 +58,11 @@ class Shapes3dDataset(data.Dataset):
         self._rand = random.Random()
         self.cat_set = cat_set
         self.is_training = is_training
-        # If categories is None, use all subfolders
-        if categories is None:
-            categories = os.listdir(dataset_folder)
-            categories = [c for c in categories
-                          if os.path.isdir(os.path.join(dataset_folder, c))]
-            categories.sort()
+
+        categories = os.listdir(dataset_folder)
+        categories = [c for c in categories
+                      if os.path.isdir(os.path.join(dataset_folder, c))]
+        categories.sort()
 
         # Read metadata file
         metadata_file = os.path.join(dataset_folder, 'metadata.yaml')

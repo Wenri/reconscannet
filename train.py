@@ -125,9 +125,6 @@ def main(args):
                 total_aug = 0
 
         trainer.lr_scheduler = None
-        # Save checkpoint
-        print('Saving checkpoint')
-        checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
 
         # Backup if necessary
         if backup_every > 0 and (epoch_it % backup_every) == 0:
@@ -140,6 +137,10 @@ def main(args):
                 backup_name = 'model_%d_%.4f.pt' % (epoch_it, metric_val)
             print('Backup checkpoint')
             checkpoint_io.save(backup_name, epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
+
+        # Save checkpoint
+        print('Saving checkpoint')
+        checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
 
 
 def parse_args():

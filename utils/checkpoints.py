@@ -107,6 +107,8 @@ class CheckpointIO(object):
 
     def sym_link(self, name):
         sym_file = Path(self.checkpoint_dir, 'model_best.pt')
+        if sym_file.is_symlink():
+            sym_file.unlink()
         sym_file.symlink_to(name, target_is_directory=False)
 
 

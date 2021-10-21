@@ -19,7 +19,7 @@ from net_utils.box_util import get_3d_box_cuda
 from net_utils.libs import flip_axis_to_camera_cuda, flip_axis_to_depth_cuda
 from net_utils.utils import initiate_environment
 from net_utils.voxel_util import voxels_from_scannet, points_from_scannet, roty
-from scannet.scannet_utils import chair_cat
+from scannet.scannet_utils import ShapeNetCat
 from scannet.visualization.vis_for_demo import Vis_base
 
 
@@ -193,7 +193,7 @@ def run(opt, cfg):
         print(f'scan_{scan_idx}')
 
         instance_indices = [idx for idx in c.box_label_mask.nonzero(as_tuple=True)[0]
-                            if c.shapenet_catids[idx] in chair_cat]
+                            if c.shapenet_catids[idx] in ShapeNetCat.chair_cat]
 
         if not instance_indices:
             continue

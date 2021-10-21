@@ -17,7 +17,7 @@ from if_net.models.data.config import get_model
 from if_net.models.generation import Generator
 from net_utils.utils import initiate_environment
 from net_utils.voxel_util import voxels_from_scannet, transform_shapenet
-from scannet.scannet_utils import chair_cat
+from scannet.scannet_utils import ShapeNetCat
 from scannet.visualization.vis_for_demo import Vis_base
 from utils.checkpoints import CheckpointIO
 
@@ -62,7 +62,7 @@ def run(opt, cfg):
         print(f'scan_{c.scan_idx}')
 
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if c.shapenet_catids[idx] not in chair_cat:
+            if c.shapenet_catids[idx] not in ShapeNetCat.chair_cat:
                 continue
 
             out_scan_dir.mkdir(exist_ok=True)

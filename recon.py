@@ -18,7 +18,7 @@ from if_net.models.data.config import get_model
 from if_net.models.generator import Generator3D
 from net_utils.utils import initiate_environment
 from net_utils.voxel_util import voxels_from_scannet, transform_shapenet
-from scannet.scannet_utils import chair_cat
+from scannet.scannet_utils import ShapeNetCat
 from scannet.visualization.vis_for_demo import Vis_base
 from utils.checkpoints import CheckpointIO
 
@@ -68,7 +68,7 @@ def run(opt, cfg):
         print(f'scan_{c.scan_idx}')
 
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if c.shapenet_catids[idx] not in chair_cat:
+            if c.shapenet_catids[idx] not in ShapeNetCat.chair_cat:
                 continue
 
             out_scan_dir.mkdir(exist_ok=True)
@@ -81,7 +81,7 @@ def run(opt, cfg):
 
             vox_to_mesh(voxels[0].cpu().numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
 
-            features = network.infer_c(ins_pc.transpose(1, 2))
+            features = network.infer_c(ins_pc.transpose(1, 2), cls_codes_for_completion=None)
             meshes = generator.generate_mesh(features, cls_codes=None, voxel_grid=voxels)[0]
 
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()

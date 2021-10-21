@@ -75,7 +75,7 @@ class Trainer(object):
 
         return compute_iou_cuda(occ_hat, occ).tolist()
 
-    def overscan_aug(self, *partial, overscan_factor=0.05):
+    def overscan_aug(self, *partial, overscan_factor=0.02):
         device = self.device
         n_batch = partial[0].shape[0]
 
