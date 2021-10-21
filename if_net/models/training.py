@@ -39,7 +39,7 @@ class Trainer(object):
         self.balance_weight = balance_weight
         self.lr_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
         self.voxgen = PointCloud2VoxelKDTree()
-        self.last_aug_ratio = 0
+        self.last_aug_ratio = []
 
     def train_step(self, batch):
         self.model.train()

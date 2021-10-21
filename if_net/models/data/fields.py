@@ -316,7 +316,7 @@ class PartialPointCloudField(Field):
             category (int): index of category
         """
 
-        data = self.load_jesse(model_path) if self._rand.random() < 0.2 else None
+        data = self.load_jesse(model_path) if self._rand.random() < 0.1 else None
         if data is None:
             data = self.load_gbc(model_path)
 
