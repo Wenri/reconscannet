@@ -300,10 +300,10 @@ class PartialPointCloudField(Field):
             provided
     """
 
-    def __init__(self, file_name, transform=None, with_transforms=False, is_training=True):
+    def __init__(self, file_name, transform=None, aug_ratio=0.05, is_training=True):
         self.file_name = file_name
         self.transform = transform
-        self.with_transforms = with_transforms
+        self.aug_ratio = aug_ratio
         self.is_training = is_training
         self._rand = random.Random()
 
@@ -318,7 +318,7 @@ class PartialPointCloudField(Field):
 
         data = None
 
-        if not self.is_training or self._rand.random() < 0.1:
+        if not self.is_training or self._rand.random() < self.aug_ratio:
             data = self.load_jesse(model_path)
 
         if data is None:

@@ -49,7 +49,7 @@ def get_data_fields(mode, cfg):
     fields = {
         'points': PointsField(cfg['data']['points_file'], points_transform, with_transforms=with_transforms,
                               unpackbits=cfg['data']['points_unpackbits']),
-        'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms,
+        'partial': PartialPointCloudField('model', partial_transform, aug_ratio=cfg['data']['aug_ratio'],
                                           is_training=is_training),
         # 'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
     }
