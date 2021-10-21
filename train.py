@@ -115,6 +115,7 @@ def main(args):
 
     print('Total dataset length: %d, valid length: %d' % (len(train_dataset), len(train_dataset._valid_map)))
 
+    # trainer.set_lr(1e-4)
     while True:
         epoch_it += 1
         #     scheduler.step()

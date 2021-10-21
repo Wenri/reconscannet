@@ -127,3 +127,8 @@ class Trainer(object):
     def get_lr(self):
         for param_group in self.optimizer.param_groups:
             return param_group['lr']
+
+    def set_lr(self, lr):
+        for param_group in self.optimizer.param_groups:
+            print(f'Resetting lr: { param_group["lr"]} initial_lr: {param_group.get("initial_lr")} to {lr}')
+            param_group['lr'] = lr
