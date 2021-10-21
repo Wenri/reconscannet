@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 import random
 from pathlib import Path
@@ -313,88 +314,55 @@ class PartialPointCloudField(Field):
             idx (int): ID of data point
             category (int): index of category
         """
-        file_path = os.path.join(model_path, self.file_name)
-        data_files = glob.glob(
-            os.path.join(file_path, 'seed_[0-9A-Z]-XYZ.npy' if self.is_training else 'render-XYZ.npy'))
-        pointcloud_file = self._rand.choice(data_files)
 
-        data = {
-            None: np.load(pointcloud_file, mmap_mode='r')[:, :3].astype(np.float32),
-        }
+        data = self.load_jesse(model_path) if self._rand.random() < 0.2 else None
+        if data is None:
+            data = self.load_gbc(model_path)
 
         if self.transform is not None:
             data = self.transform(data)
 
         return data
 
-    def check_complete(self, files):
-        ''' Check if field is complete.
+    def load_gbc(self, model_path):
+        file_path = os.path.join(model_path, self.file_name)
+        data_files = glob.glob(
+            os.path.join(file_path, 'seed_[0-9A-Z]-XYZ.npy' if self.is_training else 'render-XYZ.npy'))
+        pointcloud_file = self._rand.choice(data_files)
 
-        Args:
-            files: files
-        '''
-        complete = (self.file_name in files)
-        return complete
+        return {
+            None: np.load(pointcloud_file, mmap_mode='r')[:, :3].astype(np.float32),
+            'aug': np.zeros(shape=(), dtype=np.bool_)
+        }
 
-
-class PartialJesseField(Field):
-    """ Partial Jesse Point cloud field.
-
-    It provides the field used for point cloud data. These are the points
-    randomly sampled on the mesh.
-
-    Args:
-        file_name (str): file name
-        transform (list): list of transformations applied to data points
-        with_transforms (bool): whether scaling and rotation dat should be
-            provided
-    """
-
-    def __init__(self, file_name, transform=None, with_transforms=False):
-        self.file_name = file_name
-        self.transform = transform
-        self.with_transforms = with_transforms
-        self.is_training = True
-        self._rand = random.Random()
-
-    def load(self, model_path, idx, category):
-        """ Loads the data point.
-
-        Args:
-            model_path (str): path to model
-            idx (int): ID of data point
-            category (int): index of category
-        """
+    def load_jesse(self, model_path):
         model_path = Path(model_path)
         model_category = model_path.parent
         file_path = self.search_model_filename(Path(*model_category.parent.parts[:-1], 'jesse'),
                                                category=model_category.name, model=model_path.name)
 
         if not file_path:
-            data = {None: np.zeros(shape=(2688, 3), dtype=np.float32), 'valid': np.zeros(shape=(), dtype=np.bool_)}
-        else:
-            pointcloud_file = trimesh.load(file_path)
+            return None
 
-            # shapenet_path = Path('ShapeNetCore.v2', category, model, 'models', 'model_normalized.obj')
-            # shapenet_file = trimesh.load(shapenet_path, force='mesh')
-            # bb_max, bb_min = np.max(shapenet_file.vertices, axis=0), np.min(shapenet_file.vertices, axis=0)
-            # total_size = (bb_max - bb_min).max()
-            # centers = (bb_min + bb_max) / 2
-            # with shapenet_path.with_suffix('.json').open('r') as f:
-            #     shapenet_json = json.load(f)
+        pointcloud_file = trimesh.load(file_path)
 
-            total_pc = np.asarray(pointcloud_file.vertices)
-            total_pc = total_pc @ roty.numpy().T
+        total_pc = np.asarray(pointcloud_file.vertices)
+        total_pc = total_pc @ roty.numpy().T
 
-            data = {
-                None: total_pc.astype(np.float32),
-                'valid': np.ones(shape=(), dtype=np.bool_)
-            }
+        return {
+            None: total_pc.astype(np.float32),
+            'aug': np.ones(shape=(), dtype=np.bool_)
+        }
 
-        if self.transform is not None:
-            data = self.transform(data)
-
-        return data
+    def load_shapenet(self, category, model):
+        shapenet_path = Path('ShapeNetCore.v2', category, model, 'models', 'model_normalized.obj')
+        shapenet_file = trimesh.load(shapenet_path, force='mesh')
+        bb_max, bb_min = np.max(shapenet_file.vertices, axis=0), np.min(shapenet_file.vertices, axis=0)
+        total_size = (bb_max - bb_min).max()
+        centers = (bb_min + bb_max) / 2
+        with shapenet_path.with_suffix('.json').open('r') as f:
+            shapenet_json = json.load(f)
+        return shapenet_file, shapenet_json
 
     @staticmethod
     def search_model_filename(model_path, category, model):
@@ -408,11 +376,11 @@ class PartialJesseField(Field):
         return file_path
 
     def check_complete(self, files):
-        """ Check if field is complete.
+        ''' Check if field is complete.
 
         Args:
             files: files
-        """
+        '''
         complete = (self.file_name in files)
         return complete
 

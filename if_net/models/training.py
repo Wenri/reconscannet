@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from pytorch3d.ops import knn_points
 from torch.utils.tensorboard import SummaryWriter
 
 from export_scannet_pts import vox_to_mesh, write_pointcloud
@@ -40,6 +39,7 @@ class Trainer(object):
         self.balance_weight = balance_weight
         self.lr_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
         self.voxgen = PointCloud2VoxelKDTree()
+        self.last_aug_ratio = 0
 
     def train_step(self, batch):
         self.model.train()
@@ -52,17 +52,14 @@ class Trainer(object):
 
         return loss.item()
 
-    def overscan_aug(self, partial, p, overscan_factor=0.05):
+    def overscan_aug(self, *partial, overscan_factor=0.05):
         device = self.device
-        n_batch = p.shape[0]
+        n_batch = partial[0].shape[0]
 
         overscan = torch.abs(torch.randn(n_batch, 1, 1, device=device)) * overscan_factor
         offset = (torch.rand(n_batch, 1, 3, device=device) - 0.5) * overscan
 
-        partial = (partial + offset) / (overscan + 1)
-        p = (p + offset) / (overscan + 1)
-
-        return partial, p
+        return [(p + offset) / (overscan + 1) for p in partial]
 
     def compute_loss(self, batch):
         device = self.device
@@ -70,32 +67,27 @@ class Trainer(object):
         partial = batch.get('partial').to(device)
         p = batch.get('points').to(device)
         occ = batch.get('points.occ').to(device)
-        full_pc = batch.get('pc').to(device)
+        # full_pc = batch.get('pc').to(device)
         # voxel_gt = batch.get('voxels').to(device)
-        partial_aug = batch.get('partial_aug').to(device)
-        # partial_aug = self.model.transfer_input(partial_aug)
-        partial_aug_nograd = partial_aug.detach()
-        partial_aug_valid = batch.get('partial_aug.valid').to(device)
-        partial_input = torch.where(partial_aug_valid.unsqueeze(-1).unsqueeze(-1), partial_aug_nograd, partial)
-        # partial_input = partial
 
         cls_codes = batch.get('category')
         if cls_codes is not None:
             cls_codes = F.one_hot(cls_codes.to(device), num_classes=16)
 
-        partial_input, p = self.overscan_aug(partial_input, p)
+        partial_input, p = self.overscan_aug(partial, p)
 
         voxel_grids = pointcloud2voxel_fast(partial_input)
-        self.visualize('debug', voxel_grids, partial_input, full_pc, partial_aug_nograd)
+        # self.visualize('debug', voxel_grids, partial_input, full_pc, partial_aug)
 
         input_features = self.model.infer_c(partial_input.transpose(1, 2))
-        l, v = self.model.compute_loss(input_features_for_completion=input_features, cls_codes_for_completion=cls_codes,
+        loss = self.model.compute_loss(input_features_for_completion=input_features, cls_codes_for_completion=cls_codes,
                                        input_points_for_completion=p, input_points_occ_for_completion=occ,
                                        voxel_grids=voxel_grids, balance_weight=self.balance_weight)
-        x_nn = knn_points(partial_aug, full_pc, K=1, return_sorted=False).dists[..., 0]
-        l += 1e-3 * torch.sum(x_nn.mean(dim=1) * partial_aug_valid) / torch.sum(partial_aug_valid)
 
-        return l, v
+        partial_aug = torch.where(batch.get('partial.aug'))[0]
+        self.last_aug_ratio = partial_aug.tolist()
+
+        return loss
 
     def visualize(self, out_scan_dir, voxel_grids, partial_input, full_pc, partial_aug):
         out_scan_dir = Path(out_scan_dir)

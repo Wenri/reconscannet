@@ -13,6 +13,7 @@ class PointcloudNoise(object):
 
     def __init__(self, stddev):
         self.stddev = stddev
+        self.rand = np.random.default_rng()
 
     def __call__(self, data):
         """ Calls the transformation.
@@ -22,9 +23,8 @@ class PointcloudNoise(object):
         """
         data_out = data.copy()
         points = data[None]
-        noise = self.stddev * np.random.randn(*points.shape)
-        noise = noise.astype(np.float32)
-        data_out[None] = points + noise
+        noise = self.rand.normal(size=points.shape, scale=self.stddev)
+        data_out[None] = (points + noise).astype(np.float32)
         return data_out
 
 

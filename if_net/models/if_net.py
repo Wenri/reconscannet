@@ -78,9 +78,6 @@ class IFNet(nn.Module):
 
         self.register_buffer('displacments', torch.Tensor(displacments), persistent=False)
 
-        # self.input_scale = torch.nn.Parameter(torch.ones(size=()))
-        self.input_bias = torch.nn.Parameter(torch.zeros(dim))
-
     def forward(self, p, z, c, x=None):
         net = self.fc_p(p.transpose(1, 2))
 
@@ -261,6 +258,3 @@ class IFNet(nn.Module):
 
     def infer_c(self, points):
         return self.encoder_input(points)
-
-    def transfer_input(self, points):
-        return points + self.input_bias

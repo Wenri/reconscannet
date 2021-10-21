@@ -114,7 +114,7 @@ def main(args):
     print(model)
     print('Total number of parameters: %d' % nparameters)
 
-    print('Total dataset length: %d' % len(train_dataset))
+    print('Total dataset length: %d, valid length: %d' % (len(train_dataset), len(train_dataset._valid_map)))
 
     while True:
         epoch_it += 1
@@ -127,18 +127,18 @@ def main(args):
 
             # Print output
             if print_every > 0 and (it % print_every) == 0:
-                print('[Epoch %02d] it=%03d, loss=%.4f'
-                      % (epoch_it, it, loss))
+                print('[Epoch %02d] it=%03d, loss=%.4f, aug_ratio=%.2f: '
+                      % (epoch_it, it, loss, len(trainer.last_aug_ratio) / batch_size), trainer.last_aug_ratio)
 
-        trainer.lr_scheduler = None
-        # Save checkpoint
-        print('Saving checkpoint')
-        checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
+                trainer.lr_scheduler = None
+                # Save checkpoint
+                print('Saving checkpoint')
+                checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
 
-        # Backup if necessary
-        if backup_every > 0 and (epoch_it % backup_every) == 0:
-            print('Backup checkpoint')
-            checkpoint_io.save('model_%d.pt' % epoch_it, epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
+                # Backup if necessary
+                if backup_every > 0 and (epoch_it % backup_every) == 0:
+                    print('Backup checkpoint')
+                checkpoint_io.save('model_%d.pt' % epoch_it, epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
 
 
 def parse_args():

@@ -1,11 +1,11 @@
 from torch import nn
 from torchvision import transforms
 
-from scannet.scannet_utils import chair_cat, table_cat
+from scannet.scannet_utils import chair_cat
 from .core import Shapes3dDataset
-from .fields import IndexField, PointsField, PointCloudField, CategoryField, ImagesField, VoxelsField, \
-    PartialPointCloudField, PartialJesseField
-from .transforms import SubsamplePointcloud, PointcloudNoise, SubsamplePoints, SubselectPointcloud
+from .fields import IndexField, PointsField, CategoryField, VoxelsField, \
+    PartialPointCloudField
+from .transforms import PointcloudNoise, SubsamplePoints, SubselectPointcloud
 from ..if_net import IFNet
 
 
@@ -40,7 +40,7 @@ def get_data_fields(mode, cfg):
         cfg (dict): imported yaml config
     """
     points_transform = SubsamplePoints(cfg['data']['points_subsample'])
-    with_transforms = cfg['model']['use_camera']
+    with_transforms = cfg['data']['with_transforms']
     partial_transform = transforms.Compose([
         SubselectPointcloud(cfg['data']['pointcloud_n']),
         PointcloudNoise(cfg['data']['pointcloud_noise'])
@@ -48,9 +48,8 @@ def get_data_fields(mode, cfg):
     fields = {
         'points': PointsField(cfg['data']['points_file'], points_transform, with_transforms=with_transforms,
                               unpackbits=cfg['data']['points_unpackbits']),
-        'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
         'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms),
-        'partial_aug': PartialJesseField('model', partial_transform, with_transforms=with_transforms)
+        # 'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
     }
 
     voxels_file = cfg['data'].get('voxels_file')
@@ -100,10 +99,6 @@ def get_dataset(mode, cfg, return_idx=False):
         # Dataset fields
         # Method specific fields (usually correspond to output)
         fields = get_data_fields(mode, cfg)
-        # Input fields
-        inputs_field = get_inputs_field(mode, cfg)
-        if inputs_field is not None:
-            fields['inputs'] = inputs_field
 
         if return_idx:
             fields['idx'] = IndexField()
@@ -121,62 +116,6 @@ def get_dataset(mode, cfg, return_idx=False):
         raise ValueError('Invalid dataset "%s"' % cfg['data']['dataset'])
 
     return dataset
-
-
-def get_inputs_field(mode, cfg):
-    """ Returns the inputs fields.
-
-    Args:
-        mode (str): the mode which is used
-        cfg (dict): config dictionary
-    """
-    input_type = cfg['data']['input_type']
-    with_transforms = cfg['data']['with_transforms']
-
-    if input_type is None:
-        inputs_field = None
-    elif input_type == 'img':
-        if mode == 'train' and cfg['data']['img_augment']:
-            resize_op = transforms.RandomResizedCrop(
-                cfg['data']['img_size'], (0.75, 1.), (1., 1.))
-        else:
-            resize_op = transforms.Resize((cfg['data']['img_size']))
-
-        transform = transforms.Compose([
-            resize_op, transforms.ToTensor(),
-        ])
-
-        with_camera = cfg['data']['img_with_camera']
-
-        if mode == 'train':
-            random_view = True
-        else:
-            random_view = False
-
-        inputs_field = ImagesField(
-            cfg['data']['img_folder'], transform,
-            with_camera=with_camera, random_view=random_view
-        )
-    elif input_type == 'pointcloud':
-        transform = transforms.Compose([
-            SubsamplePointcloud(cfg['data']['pointcloud_n']),
-            PointcloudNoise(cfg['data']['pointcloud_noise'])
-        ])
-        with_transforms = cfg['data']['with_transforms']
-        inputs_field = PointCloudField(
-            cfg['data']['pointcloud_file'], transform,
-            with_transforms=with_transforms
-        )
-    elif input_type == 'voxels':
-        inputs_field = VoxelsField(
-            cfg['data']['voxels_file']
-        )
-    elif input_type == 'idx':
-        inputs_field = IndexField()
-    else:
-        raise ValueError(
-            'Invalid input type (%s)' % input_type)
-    return inputs_field
 
 
 def get_preprocessor(cfg, dataset=None, device=None):
