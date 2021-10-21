@@ -35,7 +35,6 @@ training:
   batch_size: 32
   print_every: 10
   visualize_every: 2000
-  checkpoint_every: 1
   validate_every: 2000
   backup_every: 10
   eval_sample: false
