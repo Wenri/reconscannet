@@ -73,7 +73,7 @@ def main(args):
     # optimizer = optim.Adam(model.parameters(), lr=1e-4)
     optimizer = AdaBelief(model.parameters(), lr=1e-4)
     trainer = Trainer(model, exp_name='if_net_scannet', optimizer=optimizer, device=device,
-                      warmup_iters=1000, balance_weight=cfg['training']['balance_weight'])
+                      warmup_iters=100, balance_weight=cfg['training']['balance_weight'])
 
     checkpoint_io = CheckpointIO(out_dir, model=model, optimizer=optimizer)
     try:
