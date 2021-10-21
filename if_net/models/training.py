@@ -11,6 +11,7 @@ from pytorch3d.ops import knn_points
 from torch.utils.tensorboard import SummaryWriter
 
 from export_scannet_pts import vox_to_mesh, write_pointcloud
+from if_net.data_processing.voxelized_pointcloud_sampling import PointCloud2VoxelKDTree
 from net_utils.voxel_util import pointcloud2voxel_fast
 
 
@@ -38,6 +39,7 @@ class Trainer(object):
         self.val_min = None
         self.balance_weight = balance_weight
         self.lr_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
+        self.voxgen = PointCloud2VoxelKDTree()
 
     def train_step(self, batch):
         self.model.train()
@@ -71,7 +73,7 @@ class Trainer(object):
         full_pc = batch.get('pc').to(device)
         # voxel_gt = batch.get('voxels').to(device)
         partial_aug = batch.get('partial_aug').to(device)
-        partial_aug = self.model.transfer_input(partial_aug)
+        # partial_aug = self.model.transfer_input(partial_aug)
         partial_aug_nograd = partial_aug.detach()
         partial_aug_valid = batch.get('partial_aug.valid').to(device)
         partial_input = torch.where(partial_aug_valid.unsqueeze(-1).unsqueeze(-1), partial_aug_nograd, partial)
@@ -84,7 +86,7 @@ class Trainer(object):
         partial_input, p = self.overscan_aug(partial_input, p)
 
         voxel_grids = pointcloud2voxel_fast(partial_input)
-        # self.visualize('debug', voxel_grids, full_pc, partial_aug_nograd)
+        self.visualize('debug', voxel_grids, partial_input, full_pc, partial_aug_nograd)
 
         input_features = self.model.infer_c(partial_input.transpose(1, 2))
         l, v = self.model.compute_loss(input_features_for_completion=input_features, cls_codes_for_completion=cls_codes,
@@ -95,13 +97,16 @@ class Trainer(object):
 
         return l, v
 
-    def visualize(self, out_scan_dir, voxel_grids, full_pc, partial_aug):
+    def visualize(self, out_scan_dir, voxel_grids, partial_input, full_pc, partial_aug):
         out_scan_dir = Path(out_scan_dir)
         voxel_occ = pointcloud2voxel_fast(full_pc)
         for i in range(voxel_grids.shape[0]):
             vox_to_mesh(voxel_grids[i].cpu().numpy(), out_scan_dir / f'{i}_voxel_grids', threshold=0.5)
             vox_to_mesh(voxel_occ[i].cpu().numpy(), out_scan_dir / f'{i}_voxel_pc', threshold=0.0)
+            vox_to_mesh(self.voxgen(partial_input[i].cpu().numpy()), out_scan_dir / f'{i}_voxel_gen', threshold=0.0)
             write_pointcloud(out_scan_dir / f'{i}_partial_pc.ply', partial_aug[i].cpu().numpy())
+            write_pointcloud(out_scan_dir / f'{i}_full_pc.ply', full_pc[i].cpu().numpy(),
+                             rgb_points=np.asarray((0, 255, 0), dtype=np.uint8))
 
     def save_checkpoint(self, epoch):
         path = self.checkpoint_path + 'checkpoint_epoch_{}.tar'.format(epoch)

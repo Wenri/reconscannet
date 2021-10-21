@@ -42,7 +42,7 @@ def tri_to_mesh(tri, output_file):
     return output_file_fn
 
 
-def vox_to_mesh(occ_hat, output_file, threshold=0.5, padding=0.1):
+def vox_to_mesh(occ_hat, output_file, threshold=0.5, padding=0.):
     """ Extracts the mesh from the predicted occupancy grid.
 
     Args:
@@ -60,7 +60,7 @@ def vox_to_mesh(occ_hat, output_file, threshold=0.5, padding=0.1):
     vertices, triangles = mcubes.marching_cubes(
         occ_hat_padded, threshold)
     # Strange behaviour in libmcubes: vertices are shifted by 0.5
-    vertices -= 0.5
+    # vertices -= 0.5
     # Undo padding
     vertices -= 1
     # Normalize to bounding box
@@ -81,6 +81,7 @@ def write_pointcloud(filename, xyz_points, rgb_points=None):
     assert n_dim == 3, 'Input XYZ points should be Nx3 float array'
     if rgb_points is None:
         rgb_points = np.asarray((255, 0, 0), dtype=np.uint8)
+    if rgb_points.ndim < 2:
         rgb_points = np.broadcast_to(np.expand_dims(rgb_points, axis=0), shape=(n_total, 3))
     assert xyz_points.shape == rgb_points.shape, 'Input RGB colors should be Nx3 float array and have same size as ' \
                                                  'input XYZ points '

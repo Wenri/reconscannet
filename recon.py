@@ -53,7 +53,8 @@ def run(opt, cfg):
     generator = Generator3D(network, points_batch_size=opt.batch_points, threshold=cfg.config['test']['threshold'],
                             resolution0=cfg.config['generation']['resolution_0'],
                             simplify_nfaces=cfg.config['generation']['simplify_nfaces'],
-                            refinement_step=cfg.config['generation']['refinement_step'])
+                            refinement_step=cfg.config['generation']['refinement_step'],
+                            padding=0)
 
     for cur_iter, data in enumerate(dataloader):
         bid = 0

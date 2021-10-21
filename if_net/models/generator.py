@@ -160,7 +160,7 @@ class Generator3D(object):
         vertices, triangles = mcubes.marching_cubes(
             occ_hat_padded, threshold)
         # Strange behaviour in libmcubes: vertices are shifted by 0.5
-        vertices -= 0.5
+        # vertices -= 0.5
         # Undo padding
         vertices -= 1
         # Normalize to bounding box
