@@ -3,7 +3,6 @@ data:
   dataset: Shapes3D
   path: data/ShapeNet
   classes: null
-  input_type: img
   train_split: train
   val_split: val
   test_split: test
@@ -12,19 +11,11 @@ data:
   points_iou_file: points.npz
   points_subsample: 5000
   points_unpackbits: true
-  model_file: model.off
-  watertight_file: model_watertight.off
-  img_folder: img_choy2016
-  img_size: 224 
-  img_with_camera: false
-  img_augment: false
-  n_views: 24
   pointcloud_file: pointcloud.npz
   pointcloud_chamfer_file: pointcloud.npz
   pointcloud_n: 2688
   pointcloud_target_n: 1024
   pointcloud_noise: 0.02
-  # voxels_file: 'model.binvox'
   with_transforms: false
   use_cls_for_completion: False
   skip_propagate: True
@@ -38,19 +29,15 @@ model:
   multi_gpu: false
   c_dim: 2048
   z_dim: 64
-  use_camera: false
   dmc_weight_prior: 10.
 training:
   out_dir:  out/no_clscode
   batch_size: 32
   print_every: 10
   visualize_every: 2000
-  checkpoint_every: 1
   validate_every: 2000
-  backup_every: 10
+  backup_every: 1
   eval_sample: false
-  model_selection_metric: loss
-  model_selection_mode: minimize
   balance_weight: True
 test:
   threshold: 0.5

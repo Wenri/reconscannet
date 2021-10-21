@@ -1,6 +1,7 @@
 import os
 import sys
 import urllib
+from pathlib import Path
 
 import torch
 from torch.utils import model_zoo
@@ -103,6 +104,10 @@ class CheckpointIO(object):
         scalars = {k: v for k, v in state_dict.items()
                    if k not in self.module_dict}
         return scalars
+
+    def sym_link(self, name):
+        sym_file = Path(self.checkpoint_dir, 'model_best.pt')
+        sym_file.symlink_to(name, target_is_directory=False)
 
 
 def is_url(url):

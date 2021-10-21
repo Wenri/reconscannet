@@ -35,12 +35,9 @@ training:
   batch_size: 32
   print_every: 10
   visualize_every: 2000
-  checkpoint_every: 1
   validate_every: 2000
-  backup_every: 10
+  backup_every: 1
   eval_sample: false
-  model_selection_metric: loss
-  model_selection_mode: minimize
   balance_weight: True
 test:
   threshold: 0.5

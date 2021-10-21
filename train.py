@@ -41,7 +41,6 @@ def main(args):
     # Shorthands
     out_dir = cfg['training']['out_dir']
     batch_size = cfg['training']['batch_size']
-    backup_every = cfg['training']['backup_every']
     exit_after = args.exit_after
 
     # Output directory
@@ -99,7 +98,7 @@ def main(args):
 
     # Shorthands
     print_every = cfg['training']['print_every']
-    checkpoint_every = cfg['training']['checkpoint_every']
+    backup_every = cfg['training']['backup_every']
     validate_every = cfg['training']['validate_every']
     visualize_every = cfg['training']['visualize_every']
 
@@ -113,17 +112,17 @@ def main(args):
     # trainer.set_lr(1e-4)
     while True:
         epoch_it += 1
-
+        total_aug = 0
         for batch in train_loader:
             it += 1
-            loss = trainer.train_step(batch)
+            loss, aug = trainer.train_step(batch)
             # logger.add_scalar('train/loss', loss, it)
-
+            total_aug += aug
             # Print output
             if print_every > 0 and (it % print_every) == 0:
-                print('[Epoch %02d] it=%03d, lr %.6f, loss=%.4f, aug_ratio=%.2f: '
-                      % (epoch_it, it, trainer.get_lr(), loss, len(trainer.last_aug_ratio) / batch_size),
-                      trainer.last_aug_ratio)
+                print('[Epoch %02d] it=%03d, lr %.6f, loss=%.4f, aug_ratio=%.2f'
+                      % (epoch_it, it, trainer.get_lr(), loss, total_aug / print_every / batch_size))
+                total_aug = 0
 
         trainer.lr_scheduler = None
         # Save checkpoint
@@ -133,14 +132,14 @@ def main(args):
         # Backup if necessary
         if backup_every > 0 and (epoch_it % backup_every) == 0:
             metric_val = evaluate(trainer, val_loader)
-            if metric_val > metric_val_best:
+            if not np.isfinite(metric_val_best) or metric_val > metric_val_best:
                 metric_val_best = metric_val
-                metric_val = '%.4f+' % metric_val
+                backup_name = 'model_%d_%.4f+.pt' % (epoch_it, metric_val)
+                checkpoint_io.sym_link(backup_name)
             else:
-                metric_val = '%.4f' % metric_val
+                backup_name = 'model_%d_%.4f.pt' % (epoch_it, metric_val)
             print('Backup checkpoint')
-            checkpoint_io.save(f'model_{epoch_it}_{metric_val}.pt', epoch_it=epoch_it, it=it,
-                               loss_val_best=metric_val_best)
+            checkpoint_io.save(backup_name, epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
 
 
 def parse_args():

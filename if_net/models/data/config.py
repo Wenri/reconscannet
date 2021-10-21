@@ -41,6 +41,7 @@ def get_data_fields(mode, cfg):
     """
     points_transform = SubsamplePoints(cfg['data']['points_subsample'])
     with_transforms = cfg['data']['with_transforms']
+    is_training = not mode == 'test'
     partial_transform = transforms.Compose([
         SubselectPointcloud(cfg['data']['pointcloud_n']),
         PointcloudNoise(cfg['data']['pointcloud_noise'])
@@ -48,7 +49,8 @@ def get_data_fields(mode, cfg):
     fields = {
         'points': PointsField(cfg['data']['points_file'], points_transform, with_transforms=with_transforms,
                               unpackbits=cfg['data']['points_unpackbits']),
-        'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms),
+        'partial': PartialPointCloudField('model', partial_transform, with_transforms=with_transforms,
+                                          is_training=is_training),
         # 'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
     }
 
@@ -84,6 +86,7 @@ def get_dataset(mode, cfg, return_idx=False):
     return_category = cfg['data']['use_cls_for_completion']
     cat_set = None if return_category else chair_cat
     # cat_set = table_cat
+    is_training = not mode == 'test'
 
     # Get split
     splits = {
@@ -110,7 +113,8 @@ def get_dataset(mode, cfg, return_idx=False):
             dataset_folder, fields,
             split=split,
             categories=categories,
-            cat_set=cat_set
+            cat_set=cat_set,
+            is_training=is_training
         )
     else:
         raise ValueError('Invalid dataset "%s"' % cfg['data']['dataset'])

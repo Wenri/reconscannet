@@ -300,11 +300,11 @@ class PartialPointCloudField(Field):
             provided
     """
 
-    def __init__(self, file_name, transform=None, with_transforms=False):
+    def __init__(self, file_name, transform=None, with_transforms=False, is_training=True):
         self.file_name = file_name
         self.transform = transform
         self.with_transforms = with_transforms
-        self.is_training = True
+        self.is_training = is_training
         self._rand = random.Random()
 
     def load(self, model_path, idx, category):
@@ -316,7 +316,11 @@ class PartialPointCloudField(Field):
             category (int): index of category
         """
 
-        data = self.load_jesse(model_path) if self._rand.random() < 0.1 else None
+        data = None
+
+        if not self.is_training or self._rand.random() < 0.1:
+            data = self.load_jesse(model_path)
+
         if data is None:
             data = self.load_gbc(model_path)
 
@@ -327,9 +331,10 @@ class PartialPointCloudField(Field):
 
     def load_gbc(self, model_path):
         file_path = os.path.join(model_path, self.file_name)
-        data_files = glob.glob(
-            os.path.join(file_path, 'seed_[0-9A-Z]-XYZ.npy' if self.is_training else 'render-XYZ.npy'))
-        pointcloud_file = self._rand.choice(data_files)
+        if self.is_training:
+            pointcloud_file = self._rand.choice(glob.glob(os.path.join(file_path, 'seed_[0-9A-Z]-XYZ.npy')))
+        else:
+            pointcloud_file = os.path.join(file_path, 'render-XYZ.npy')
 
         return {
             None: np.load(pointcloud_file, mmap_mode='r')[:, :3].astype(np.float32),
@@ -348,7 +353,7 @@ class PartialPointCloudField(Field):
         pointcloud_file = trimesh.load(file_path)
 
         total_pc = torch.from_numpy(pointcloud_file.vertices)
-        total_pc = total_pc @ roty.T.type(total_pc.dtype)
+        total_pc = total_pc @ roty.T.to(dtype=total_pc.dtype)
 
         return {
             None: total_pc.float().numpy(),

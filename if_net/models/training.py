@@ -47,7 +47,6 @@ class Trainer(object):
 
         loss, _ = self.compute_loss(
             partial=batch.get('partial').to(self.device),
-            partial_aug=batch.get('partial.aug'),
             p=batch.get('points').to(self.device),
             occ=batch.get('points.occ').to(self.device),
             cls_codes=batch.get('category'))
@@ -57,13 +56,13 @@ class Trainer(object):
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
-        return loss.item()
+        partial_aug_count = torch.count_nonzero(batch.get('partial.aug')).item()
+        return loss.item(), partial_aug_count
 
     def eval_step(self, batch):
         self.model.eval()
 
         partial = batch.get('partial').to(self.device)
-        partial_aug = batch.get('partial.aug')
         p = batch.get('points_iou').to(self.device)
         occ = batch.get('points_iou.occ').to(self.device)
         cls_codes = batch.get('category')
@@ -85,7 +84,7 @@ class Trainer(object):
 
         return [(p + offset) / (overscan + 1) for p in partial]
 
-    def compute_loss(self, partial, partial_aug, p, occ, cls_codes=None):
+    def compute_loss(self, partial, p, occ, cls_codes=None):
         partial_input, p = self.overscan_aug(partial, p)
 
         voxel_grids = pointcloud2voxel_fast(partial_input)
@@ -95,9 +94,6 @@ class Trainer(object):
         loss = self.model.compute_loss(input_features_for_completion=input_features, voxel_grids=voxel_grids,
                                        input_points_for_completion=p, input_points_occ_for_completion=occ,
                                        balance_weight=self.balance_weight)
-
-        partial_aug = torch.where(partial_aug)[0]
-        self.last_aug_ratio = partial_aug.tolist()
 
         return loss
 
