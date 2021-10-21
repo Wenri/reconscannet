@@ -51,7 +51,7 @@ class Generator3D(object):
         self.preprocessor = preprocessor
         self.use_cls_for_completion = use_cls_for_completion
 
-    def generate_mesh(self, object_features, cls_codes, voxel_grid, return_stats=True, **kwargs):
+    def generate_mesh(self, object_features, voxel_grid, return_stats=True, **kwargs):
         """ Generates the output mesh.
 
         Args:
@@ -62,9 +62,6 @@ class Generator3D(object):
         self.model.eval()
         device = object_features.device
         batch_size = object_features.size(0)
-
-        if self.model.use_cls_for_completion:
-            object_features = torch.cat([object_features, cls_codes], dim=-1)
 
         meshes = []
         for batch_id in range(batch_size):

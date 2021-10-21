@@ -15,6 +15,7 @@ from configs.scannet_config import ScannetConfig
 from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
 from export_scannet_pts import tri_to_mesh, vox_to_mesh, get_bbox
 from if_net.models.data.config import get_model
+from if_net.models.data.core import list_categories
 from if_net.models.generator import Generator3D
 from net_utils.utils import initiate_environment
 from net_utils.voxel_util import voxels_from_scannet, transform_shapenet
@@ -27,6 +28,7 @@ def run(opt, cfg):
     weight_file = Path(cfg.config['weight'])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    categories = {c: idx for idx, c in enumerate(list_categories(cfg.config['data']['path']))}
 
     dataset = ISCNet_ScanNet(cfg, mode='test', split='test')
     dataloader = DataLoader(dataset=dataset,
@@ -81,8 +83,9 @@ def run(opt, cfg):
 
             vox_to_mesh(voxels[0].cpu().numpy(), out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_input")
 
-            features = network.infer_c(ins_pc.transpose(1, 2), cls_codes_for_completion=None)
-            meshes = generator.generate_mesh(features, cls_codes=None, voxel_grid=voxels)[0]
+            cat_idx = torch.as_tensor(categories[c.shapenet_catids[idx]])
+            features = network.infer_c(ins_pc.transpose(1, 2), cls_codes_for_completion=cat_idx.unsqueeze(0))
+            meshes = generator.generate_mesh(features, voxel_grid=voxels)[0]
 
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()
             output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_output")

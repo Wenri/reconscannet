@@ -59,11 +59,7 @@ class Shapes3dDataset(data.Dataset):
         self.cat_set = cat_set
         self.is_training = is_training
 
-        categories = os.listdir(dataset_folder)
-        categories = [c for c in categories
-                      if os.path.isdir(os.path.join(dataset_folder, c))]
-        categories.sort()
-
+        categories = list_categories(dataset_folder)
         # Read metadata file
         metadata_file = os.path.join(dataset_folder, 'metadata.yaml')
 
@@ -105,8 +101,9 @@ class Shapes3dDataset(data.Dataset):
         """ Returns the length of the dataset.
         """
         self._valid_map = list(self.update_valid())
-        self._rand.shuffle(self._valid_map)
-        return len(self.models)
+        if self.is_training:
+            self._rand.shuffle(self._valid_map)
+        return len(self.models) if self.is_training else len(self._valid_map)
 
     def __getitem__(self, idx):
         """ Returns an item of the dataset.
@@ -187,3 +184,11 @@ def worker_init_fn(worker_id):
     random_data = os.urandom(4)
     base_seed = int.from_bytes(random_data, byteorder="big")
     np.random.seed(base_seed + worker_id)
+
+
+def list_categories(dataset_folder):
+    categories = os.listdir(dataset_folder)
+    categories = [c for c in categories
+                  if os.path.isdir(os.path.join(dataset_folder, c))]
+    categories.sort()
+    return categories

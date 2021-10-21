@@ -41,7 +41,7 @@ def get_data_fields(mode, cfg):
     """
     points_transform = SubsamplePoints(cfg['data']['points_subsample'])
     with_transforms = cfg['data']['with_transforms']
-    is_training = not mode == 'test'
+    is_training = mode == 'train'
     partial_transform = transforms.Compose([
         SubselectPointcloud(cfg['data']['pointcloud_n']),
         PointcloudNoise(cfg['data']['pointcloud_noise'])
@@ -85,7 +85,7 @@ def get_dataset(mode, cfg, return_idx=False):
     categories = cfg['data']['classes']
     return_category = cfg['data']['use_cls_for_completion']
     cat_set = getattr(ShapeNetCat, categories) if categories else None
-    is_training = not mode == 'test'
+    is_training = mode == 'train'
 
     # Get split
     splits = {
