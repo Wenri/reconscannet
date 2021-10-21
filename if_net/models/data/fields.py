@@ -5,6 +5,7 @@ import random
 from pathlib import Path
 
 import numpy as np
+import torch
 import trimesh
 from PIL import Image
 
@@ -346,11 +347,11 @@ class PartialPointCloudField(Field):
 
         pointcloud_file = trimesh.load(file_path)
 
-        total_pc = np.asarray(pointcloud_file.vertices)
-        total_pc = total_pc @ roty.numpy().T
+        total_pc = torch.from_numpy(pointcloud_file.vertices)
+        total_pc = total_pc @ roty.T.type(total_pc.dtype)
 
         return {
-            None: total_pc.astype(np.float32),
+            None: total_pc.float().numpy(),
             'aug': np.ones(shape=(), dtype=np.bool_)
         }
 
