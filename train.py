@@ -73,8 +73,7 @@ def main(args):
     # optimizer = optim.Adam(model.parameters(), lr=1e-4)
     optimizer = AdaBelief(model.parameters(), lr=1e-4)
     trainer = Trainer(model, exp_name='if_net_scannet', optimizer=optimizer, device=device,
-                      warmup_iters=len(train_dataset) - 1,
-                      balance_weight=cfg['training']['balance_weight'])
+                      warmup_iters=1000, balance_weight=cfg['training']['balance_weight'])
 
     checkpoint_io = CheckpointIO(out_dir, model=model, optimizer=optimizer)
     try:
@@ -127,8 +126,9 @@ def main(args):
 
             # Print output
             if print_every > 0 and (it % print_every) == 0:
-                print('[Epoch %02d] it=%03d, loss=%.4f, aug_ratio=%.2f: '
-                      % (epoch_it, it, loss, len(trainer.last_aug_ratio) / batch_size), trainer.last_aug_ratio)
+                print('[Epoch %02d] it=%03d, lr %.6f, loss=%.4f, aug_ratio=%.2f: '
+                      % (epoch_it, it, trainer.get_lr(), loss, len(trainer.last_aug_ratio) / batch_size),
+                      trainer.last_aug_ratio)
 
         trainer.lr_scheduler = None
         # Save checkpoint
