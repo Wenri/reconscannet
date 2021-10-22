@@ -30,7 +30,7 @@ def run(opt, cfg):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     categories = {c: idx for idx, c in enumerate(list_categories(cfg.config['data']['path']))}
 
-    dataset = ISCNet_ScanNet(cfg, mode='test', split='test')
+    dataset = ISCNet_ScanNet(cfg, mode='test', split='train')
     dataloader = DataLoader(dataset=dataset,
                             num_workers=cfg.config['device']['num_workers'],
                             batch_size=1,
@@ -59,6 +59,9 @@ def run(opt, cfg):
                             padding=0)
 
     for cur_iter, data in enumerate(dataloader):
+        if cur_iter <= 100:
+            continue
+
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
 
@@ -70,7 +73,7 @@ def run(opt, cfg):
         print(f'scan_{c.scan_idx}')
 
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if c.shapenet_catids[idx] not in ShapeNetCat.chair_cat:
+            if c.shapenet_catids[idx] not in ShapeNetCat.table_cat:
                 continue
 
             out_scan_dir.mkdir(exist_ok=True)

@@ -9,7 +9,7 @@ data:
   dim: 3
   points_file: points.npz
   points_iou_file: points.npz
-  points_subsample: 8000
+  points_subsample: 5000
   points_unpackbits: true
   pointcloud_file: pointcloud.npz
   pointcloud_chamfer_file: pointcloud.npz

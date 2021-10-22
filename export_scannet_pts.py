@@ -171,7 +171,7 @@ def get_scannet_mesh(path_config, scene_name):
 
 
 def run(opt, cfg):
-    dataset = ISCNet_ScanNet(cfg, mode='test')
+    dataset = ISCNet_ScanNet(cfg, mode='test', split='train')
     dataloader = DataLoader(dataset=dataset,
                             num_workers=cfg.config['device']['num_workers'],
                             batch_size=1,
@@ -193,7 +193,7 @@ def run(opt, cfg):
         print(f'scan_{scan_idx}')
 
         instance_indices = [idx for idx in c.box_label_mask.nonzero(as_tuple=True)[0]
-                            if c.shapenet_catids[idx] in ShapeNetCat.chair_cat]
+                            if c.shapenet_catids[idx] in ShapeNetCat.table_cat]
 
         if not instance_indices:
             continue
@@ -250,7 +250,7 @@ def parse_args():
     parser.add_argument('--n_primitives', type=int, default=16, help='number of primitives in the atlas')
     parser.add_argument('--model', type=Path, default=Path('trained_model', 'checkpoint_epoch_999.tar'),
                         help='optional reload model path')
-    parser.add_argument('--output_dir', type=Path, default=Path('out'),
+    parser.add_argument('--output_dir', type=Path, default=Path('out_export'),
                         help='output path')
     parser.add_argument('--res', default=32, type=int)
     parser.add_argument('--retrieval_res', default=256, type=int)

@@ -1,6 +1,6 @@
 method: ISCNet
 seed: 10
-weight: out/chair_cls/model_best.pt
+weight: out/chair_cls/model_193_0.6102+.pt
 device:
   use_gpu: True
   gpu_ids: '1'
@@ -58,7 +58,7 @@ generation:
   upsampling_steps: 0
   use_sampling: False
   refinement_step: 0
-  simplify_nfaces: Null
+  simplify_nfaces: 5000
   dump_threshold: 0.5
   dump_results: True
 demo:
