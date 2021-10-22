@@ -72,7 +72,7 @@ def main(args):
     # Intialize training
     # optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     # optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    optimizer = AdaBelief(model.parameters(), lr=1e-4)
+    optimizer = AdaBelief(model.parameters(), lr=1e-5)
     trainer = Trainer(model, exp_name='if_net_scannet', optimizer=optimizer, device=device,
                       warmup_iters=100, balance_weight=cfg['training']['balance_weight'])
 

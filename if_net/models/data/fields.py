@@ -318,7 +318,7 @@ class PartialPointCloudField(Field):
 
         data = None
 
-        if not self.is_training or self._rand.random() < self.aug_ratio:
+        if self.is_training and self._rand.random() < self.aug_ratio:
             data = self.load_jesse(model_path)
 
         if data is None:

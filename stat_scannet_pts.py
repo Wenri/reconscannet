@@ -1,9 +1,11 @@
 import argparse
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 
+import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -24,6 +26,10 @@ def run(opt, cfg):
                             worker_init_fn=my_worker_init_fn)
 
     stat_cat_dict = defaultdict(int)
+    metadata_file = os.path.join(cfg.config['data']['path'], 'metadata.yaml')
+    with open(metadata_file, 'r') as f:
+        metadata = yaml.load(f)
+
     for data in tqdm(dataloader, file=sys.stdout, dynamic_ncols=True):
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
@@ -43,14 +49,15 @@ def run(opt, cfg):
             shapenatcat_id = c.shapenet_catids[idx]
             stat_cat_dict[shapenatcat_id] += 1
 
-    print(stat_cat_dict)
+    for id, cnt in stat_cat_dict.items():
+        print(f'{metadata[id]["name"]}: {cnt}')
 
 
 def parse_args():
     """PARAMETERS"""
     base_dir = Path(__file__).parent
     parser = argparse.ArgumentParser('Instance Scene Completion.')
-    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'ISCNet_test.yaml',
+    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'if_net_test.yaml',
                         help='configure file for training or testing.')
     parser.add_argument('--mode', type=str, default='train', help='train, test or demo.')
     parser.add_argument('--demo_path', type=Path, default=base_dir / 'demo' / 'inputs' / 'scene0549_00.off',

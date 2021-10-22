@@ -2,7 +2,7 @@ method: onet
 data:
   dataset: Shapes3D
   path: data/ShapeNet
-  classes: null
+  classes: table_cat
   train_split: train
   val_split: val
   test_split: test
@@ -16,6 +16,7 @@ data:
   pointcloud_n: 2688
   pointcloud_target_n: 1024
   pointcloud_noise: 0.02
+  aug_ratio: 0.05
   with_transforms: false
   use_cls_for_completion: True
   skip_propagate: True
@@ -36,7 +37,7 @@ training:
   print_every: 10
   visualize_every: 2000
   validate_every: 2000
-  backup_every: 10
+  backup_every: 1
   eval_sample: false
   balance_weight: True
 test:
