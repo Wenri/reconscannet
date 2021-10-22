@@ -113,7 +113,15 @@ def main(args):
         total_aug = 0
         for batch in train_loader:
             it += 1
-            loss, aug = trainer.train_step(batch)
+            loss, aug, fixed_id, invalid_id = trainer.train_step(batch)
+            if fixed_id:
+                print('Fix', fixed_id, end=' ')
+            if invalid_id:
+                print('INV:', end='')
+                for reason in invalid_id.values():
+                    print('%.2f' % reason, end=' ')
+            if fixed_id or invalid_id:
+                print()
             # logger.add_scalar('train/loss', loss, it)
             total_aug += aug
             # Print output

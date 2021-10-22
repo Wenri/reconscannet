@@ -4,19 +4,19 @@ from torchvision import transforms
 from scannet.scannet_utils import ShapeNetCat
 from .core import Shapes3dDataset
 from .fields import IndexField, PointsField, CategoryField, VoxelsField, \
-    PartialPointCloudField
+    PartialPointCloudField, PointCloudField
 from .transforms import PointcloudNoise, SubsamplePoints, SubselectPointcloud
 from ..if_net import IFNet
 
 
 def get_model(cfg, device=None, dataset=None, **kwargs):
-    ''' Return the Occupancy Network model.
+    """ Return the Occupancy Network model.
 
     Args:
         cfg (dict): imported yaml config
         device (device): pytorch device
         dataset (dataset): dataset
-    '''
+    """
     decoder = cfg['model']['decoder']
     encoder = cfg['model']['encoder']
     encoder_latent = cfg['model']['encoder_latent']
@@ -51,7 +51,7 @@ def get_data_fields(mode, cfg):
                               unpackbits=cfg['data']['points_unpackbits']),
         'partial': PartialPointCloudField('model', partial_transform, aug_ratio=cfg['data']['aug_ratio'],
                                           is_training=is_training),
-        # 'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
+        'pc': PointCloudField('pointcloud.npz', with_transforms=with_transforms),
     }
 
     voxels_file = cfg['data'].get('voxels_file')
@@ -71,7 +71,7 @@ def get_data_fields(mode, cfg):
 
 
 # Datasets
-def get_dataset(mode, cfg, return_idx=False):
+def get_dataset(mode, cfg, return_idx=True):
     """ Returns the dataset.
 
     Args:

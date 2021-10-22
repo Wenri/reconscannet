@@ -1,4 +1,22 @@
+from itertools import chain, product
+
 import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+
+def generate_rotmatrix():
+    def m_xyz(deg):
+        return tuple(R.from_euler(axis, deg, degrees=True).as_matrix() for axis in 'xyz')
+
+    def chaindedup(mat_list):
+        mats = set(np.asarray(a, dtype=np.int).tobytes('C') for a in mat_list)
+        return tuple(np.reshape(np.frombuffer(buf, dtype=np.int), (3, 3), order='C') for buf in mats)
+
+    base = chaindedup(chain.from_iterable(m_xyz(a) for a in (0, 90, 180, 270)))
+    level2 = chaindedup(np.matmul(y, x) for x, y in product(base, repeat=2))
+    level3 = chaindedup(np.matmul(y, x) for x, y in product(base, level2))
+
+    return level3
 
 
 # Transforms

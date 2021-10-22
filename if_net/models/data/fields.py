@@ -149,13 +149,13 @@ class PointsField(Field):
         self.unpackbits = unpackbits
 
     def load(self, model_path, idx, category):
-        ''' Loads the data point.
+        """ Loads the data point.
 
         Args:
             model_path (str): path to model
             idx (int): ID of data point
             category (int): index of category
-        '''
+        """
         file_path = os.path.join(model_path, self.file_name)
 
         points_dict = np.load(file_path)
@@ -188,27 +188,27 @@ class PointsField(Field):
 
 
 class VoxelsField(Field):
-    ''' Voxel field class.
+    """ Voxel field class.
 
     It provides the class used for voxel-based data.
 
     Args:
         file_name (str): file name
         transform (list): list of transformations applied to data points
-    '''
+    """
 
     def __init__(self, file_name, transform=None):
         self.file_name = file_name
         self.transform = transform
 
     def load(self, model_path, idx, category):
-        ''' Loads the data point.
+        """ Loads the data point.
 
         Args:
             model_path (str): path to model
             idx (int): ID of data point
             category (int): index of category
-        '''
+        """
         file_path = os.path.join(model_path, self.file_name)
 
         with open(file_path, 'rb') as f:
@@ -221,17 +221,17 @@ class VoxelsField(Field):
         return voxels
 
     def check_complete(self, files):
-        ''' Check if field is complete.
+        """ Check if field is complete.
 
         Args:
             files: files
-        '''
+        """
         complete = (self.file_name in files)
         return complete
 
 
 class PointCloudField(Field):
-    ''' Point cloud field.
+    """ Point cloud field.
 
     It provides the field used for point cloud data. These are the points
     randomly sampled on the mesh.
@@ -241,7 +241,7 @@ class PointCloudField(Field):
         transform (list): list of transformations applied to data points
         with_transforms (bool): whether scaling and rotation dat should be
             provided
-    '''
+    """
 
     def __init__(self, file_name, transform=None, with_transforms=False):
         self.file_name = file_name
@@ -278,11 +278,11 @@ class PointCloudField(Field):
         return data
 
     def check_complete(self, files):
-        ''' Check if field is complete.
+        """ Check if field is complete.
 
         Args:
             files: files
-        '''
+        """
         complete = (self.file_name in files)
         return complete
 
@@ -318,7 +318,7 @@ class PartialPointCloudField(Field):
 
         data = None
 
-        if self.is_training and self._rand.random() < self.aug_ratio:
+        if not self.is_training or self._rand.random() < self.aug_ratio:
             data = self.load_jesse(model_path)
 
         if data is None:
@@ -382,11 +382,11 @@ class PartialPointCloudField(Field):
         return file_path
 
     def check_complete(self, files):
-        ''' Check if field is complete.
+        """ Check if field is complete.
 
         Args:
             files: files
-        '''
+        """
         complete = (self.file_name in files)
         return complete
 
@@ -394,7 +394,7 @@ class PartialPointCloudField(Field):
 # NOTE: this will produce variable length output.
 # You need to specify collate_fn to make it work with a data laoder
 class MeshField(Field):
-    ''' Mesh field.
+    """ Mesh field.
 
     It provides the field used for mesh data. Note that, depending on the
     dataset, it produces variable length output, so that you need to specify
@@ -403,20 +403,20 @@ class MeshField(Field):
     Args:
         file_name (str): file name
         transform (list): list of transforms applied to data points
-    '''
+    """
 
     def __init__(self, file_name, transform=None):
         self.file_name = file_name
         self.transform = transform
 
     def load(self, model_path, idx, category):
-        ''' Loads the data point.
+        """ Loads the data point.
 
         Args:
             model_path (str): path to model
             idx (int): ID of data point
             category (int): index of category
-        '''
+        """
         file_path = os.path.join(model_path, self.file_name)
 
         mesh = trimesh.load(file_path, process=False)
@@ -431,10 +431,10 @@ class MeshField(Field):
         return data
 
     def check_complete(self, files):
-        ''' Check if field is complete.
+        """ Check if field is complete.
 
         Args:
             files: files
-        '''
+        """
         complete = (self.file_name in files)
         return complete

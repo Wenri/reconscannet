@@ -133,7 +133,7 @@ class IFNet(nn.Module):
         return out
 
     def compute_loss(self, input_features_for_completion, input_points_for_completion, input_points_occ_for_completion,
-                     voxel_grids, export_shape=False, balance_weight=False):
+                     voxel_grids, export_shape=False, balance_weight=False, valid_mask=None):
         """
         Compute loss for OccNet
         :param input_features_for_completion (N_B x D): Number of bounding boxes x Dimension of proposal feature.
@@ -163,15 +163,15 @@ class IFNet(nn.Module):
         '''Decode to occupancy voxels.'''
         logits = self(input_points_for_completion, z, input_features_for_completion, voxel_grids)
 
+        num_tot = input_points_occ_for_completion.shape[1]
         if balance_weight:
             num_pos = torch.sum(input_points_occ_for_completion, keepdim=True, dim=-1)
             num_pos[num_pos == 0] = 1e-6
-            num_tot = input_points_occ_for_completion.shape[1]
             pos_weight = input_points_occ_for_completion / num_pos
             neg_weight = (1.0 - input_points_occ_for_completion) / (num_tot - num_pos)
-            weight = 0.5 * num_tot * (pos_weight + neg_weight)
+            weight = 0.5 * num_tot * (pos_weight + neg_weight) * valid_mask.unsqueeze(-1)
         else:
-            weight = None
+            weight = valid_mask.unsqueeze(-1).expand(-1, num_tot)
 
         loss_i = F.binary_cross_entropy_with_logits(
             logits, input_points_occ_for_completion, reduction='none', weight=weight)
