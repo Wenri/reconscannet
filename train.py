@@ -19,6 +19,7 @@ from utils.checkpoints import CheckpointIO
 
 
 def evaluate(trainer, val_loader):
+    torch.cuda.empty_cache()
     metric_val = []
     total_invalid = 0
     total_fixed = 0
@@ -35,13 +36,13 @@ def evaluate(trainer, val_loader):
     return metric_val
 
 
-def train_one_epoch(train_loader, trainer, epoch_it, it, print_every):
+def train_one_epoch(train_loader, trainer, epoch_it, print_every):
+    torch.cuda.empty_cache()
     total_aug = 0
     fix_number = 0
     inv_stat = []
 
-    for batch in train_loader:
-        it += 1
+    for it, batch in enumerate(train_loader):
         loss, aug, fixed_id, invalid_id = trainer.train_step(batch)
         fix_number += len(fixed_id)
         inv_stat.extend(invalid_id.values())
@@ -59,8 +60,6 @@ def train_one_epoch(train_loader, trainer, epoch_it, it, print_every):
             total_aug = 0
             fix_number = 0
             inv_stat.clear()
-
-    return it
 
 
 def main(args):
@@ -116,7 +115,6 @@ def main(args):
         print('checkpoint_io load err: ', e, file=sys.stderr)
         load_dict = dict()
     epoch_it = load_dict.get('epoch_it', -1)
-    it = load_dict.get('it', -1)
     metric_val_best = load_dict.get('loss_val_best', -np.inf)
     # metric_val_best = -np.inf
 
@@ -143,7 +141,7 @@ def main(args):
     # trainer.set_lr(1e-4)
     while True:
         epoch_it += 1
-        it += train_one_epoch(train_loader, trainer, epoch_it, it, print_every)
+        train_one_epoch(train_loader, trainer, epoch_it, print_every)
         trainer.lr_scheduler = None
 
         # Backup if necessary
@@ -156,11 +154,11 @@ def main(args):
             else:
                 backup_name = 'model_%d_%.4f.pt' % (epoch_it, metric_val)
             print('Backup checkpoint')
-            checkpoint_io.save(backup_name, epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
+            checkpoint_io.save(backup_name, epoch_it=epoch_it, loss_val_best=metric_val_best)
 
         # Save checkpoint
         print('Saving checkpoint')
-        checkpoint_io.save('model.pt', epoch_it=epoch_it, it=it, loss_val_best=metric_val_best)
+        checkpoint_io.save('model.pt', epoch_it=epoch_it, loss_val_best=metric_val_best)
 
 
 def parse_args():

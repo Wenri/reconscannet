@@ -41,7 +41,6 @@ class Trainer(object):
         self.balance_weight = balance_weight
         self.lr_scheduler = warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
         self.voxgen = PointCloud2VoxelKDTree()
-        self.last_aug_ratio = []
         _rot_matrix = torch.stack([torch.from_numpy(m.T.astype(np.float32)) for m in generate_rotmatrix()])
         self._rot_matrix_cuda = _rot_matrix.to(self.device)
 
@@ -81,9 +80,9 @@ class Trainer(object):
 
         x_nn = knn_points(full_pc, partial, K=1, return_sorted=False).dists[..., 0]
         dist = x_nn.mean(-1)
-        invalid_id = {idx: dist[idx] for idx in invalid_id}
+        invalid_id = {idx: dist[idx].item() for idx in invalid_id}
         for idx in torch.nonzero(dist > rdist_threshold, as_tuple=True)[0].tolist():
-            invalid_id[idx] = dist[idx]
+            invalid_id[idx] = dist[idx].item()
         return invalid_id, fixed_id
 
     def train_step(self, batch):
