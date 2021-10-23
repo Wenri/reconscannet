@@ -59,7 +59,7 @@ def run(opt, cfg):
                             padding=0)
 
     for cur_iter, data in enumerate(dataloader):
-        if cur_iter <= 100:
+        if cur_iter <= 200:
             continue
 
         bid = 0
@@ -73,7 +73,7 @@ def run(opt, cfg):
         print(f'scan_{c.scan_idx}')
 
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if c.shapenet_catids[idx] not in ShapeNetCat.table_cat:
+            if c.shapenet_catids[idx] not in ShapeNetCat.chair_cat:
                 continue
 
             out_scan_dir.mkdir(exist_ok=True)

@@ -20,12 +20,16 @@ from utils.checkpoints import CheckpointIO
 
 def evaluate(trainer, val_loader):
     metric_val = []
+    total_invalid = 0
+    total_fixed = 0
     teval = tqdm(val_loader, unit='images', unit_scale=val_loader.batch_size, file=sys.stdout, dynamic_ncols=True)
     for batch in teval:
         val, invalid_id, fixed_id = trainer.eval_step(batch)
-        teval.set_description(
-            '[metric val: %.4f, FIX: %d, INV: %d]' % (sum(val) / len(val), len(fixed_id), len(invalid_id)))
         metric_val += [v for idx, v in enumerate(val) if idx not in invalid_id]
+        total_invalid += len(invalid_id)
+        total_fixed += len(fixed_id)
+        teval.set_description(
+            '[metric val: %.4f, FIX: %d, INV: %d]' % (sum(metric_val) / len(metric_val), len(fixed_id), total_invalid))
     metric_val = sum(metric_val) / len(metric_val)
     print('total metric val:  %.4f' % metric_val)
     return metric_val
@@ -113,8 +117,8 @@ def main(args):
         load_dict = dict()
     epoch_it = load_dict.get('epoch_it', -1)
     it = load_dict.get('it', -1)
-    metric_val_best = load_dict.get(
-        'loss_val_best', -np.inf)
+    metric_val_best = load_dict.get('loss_val_best', -np.inf)
+    # metric_val_best = -np.inf
 
     print('Current best validation metric: %.8f' % metric_val_best)
 
