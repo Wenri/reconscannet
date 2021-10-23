@@ -31,6 +31,34 @@ def evaluate(trainer, val_loader):
     return metric_val
 
 
+def train_one_epoch(train_loader, trainer, epoch_it, it, print_every):
+    total_aug = 0
+    fix_number = 0
+    inv_stat = []
+
+    for batch in train_loader:
+        it += 1
+        loss, aug, fixed_id, invalid_id = trainer.train_step(batch)
+        fix_number += len(fixed_id)
+        inv_stat.extend(invalid_id.values())
+        total_aug += aug
+        # logger.add_scalar('train/loss', loss, it)
+        # Print output
+        if print_every > 0 and (it % print_every) == 0:
+            print('[Epoch %02d] it=%03d, lr %.6f, loss=%.4f, aug_ratio=%.2f, FIX=%d, INV=%d:'
+                  % (epoch_it, it, trainer.get_lr(), loss, total_aug / print_every / train_loader.batch_size,
+                     fix_number, len(inv_stat)), end=' ')
+            inv_stat.sort()
+            for reason in inv_stat:
+                print('%.2f' % reason, end=' ')
+            print()
+            total_aug = 0
+            fix_number = 0
+            inv_stat.clear()
+
+    return it
+
+
 def main(args):
     is_cuda = (torch.cuda.is_available() and not args.no_cuda)
     device = torch.device("cuda" if is_cuda else "cpu")
@@ -111,27 +139,7 @@ def main(args):
     # trainer.set_lr(1e-4)
     while True:
         epoch_it += 1
-        total_aug = 0
-
-        for batch in train_loader:
-            it += 1
-            loss, aug, fixed_id, invalid_id = trainer.train_step(batch)
-            if fixed_id:
-                print('Fix', fixed_id, end=' ')
-            if invalid_id:
-                print('INV:', end='')
-                for reason in invalid_id.values():
-                    print('%.2f' % reason, end=' ')
-            if fixed_id or invalid_id:
-                print()
-            # logger.add_scalar('train/loss', loss, it)
-            total_aug += aug
-            # Print output
-            if print_every > 0 and (it % print_every) == 0:
-                print('[Epoch %02d] it=%03d, lr %.6f, loss=%.4f, aug_ratio=%.2f'
-                      % (epoch_it, it, trainer.get_lr(), loss, total_aug / print_every / batch_size))
-                total_aug = 0
-
+        it += train_one_epoch(train_loader, trainer, epoch_it, it, print_every)
         trainer.lr_scheduler = None
 
         # Backup if necessary
