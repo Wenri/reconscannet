@@ -305,7 +305,7 @@ class PartialPointCloudField(Field):
         self.transform = transform
         self.aug_ratio = aug_ratio
         self.is_training = is_training
-        self._rand = random.Random()
+        self._rand = random.SystemRandom()
 
     def load(self, model_path, idx, category):
         """ Loads the data point.

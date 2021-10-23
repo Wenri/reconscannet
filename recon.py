@@ -40,14 +40,14 @@ def run(opt, cfg):
 
     network = get_model(cfg.config, device=device, dataset=dataset)
     checkpoint_io = CheckpointIO(os.fspath(weight_file.parent), model=network)
+    cat_set = cfg.config['data']['classes']
+    cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
 
     try:
-        load_dict = checkpoint_io.load(weight_file.name)
+        checkpoint_io.load(weight_file.name)
     except FileNotFoundError:
         print('Checkpoint File Not Found Error', file=sys.stderr)
         return -1
-    epoch_it = load_dict.get('epoch_it', -1)
-    it = load_dict.get('it', -1)
 
     network.cuda()
     network.eval()
@@ -73,7 +73,7 @@ def run(opt, cfg):
         print(f'scan_{c.scan_idx}')
 
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if c.shapenet_catids[idx] not in ShapeNetCat.chair_cat:
+            if cat_set is not None and c.shapenet_catids[idx] not in cat_set:
                 continue
 
             out_scan_dir.mkdir(exist_ok=True)

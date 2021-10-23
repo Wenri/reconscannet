@@ -179,6 +179,8 @@ def run(opt, cfg):
                             collate_fn=collate_fn,
                             worker_init_fn=my_worker_init_fn)
     path_config = PathConfig('scannet')
+    cat_set = cfg.config['data']['classes']
+    cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
 
     for cur_iter, data in enumerate(dataloader):
         bid = 0
@@ -193,7 +195,7 @@ def run(opt, cfg):
         print(f'scan_{scan_idx}')
 
         instance_indices = [idx for idx in c.box_label_mask.nonzero(as_tuple=True)[0]
-                            if c.shapenet_catids[idx] in ShapeNetCat.table_cat]
+                            if c.shapenet_catids[idx] in cat_set]
 
         if not instance_indices:
             continue

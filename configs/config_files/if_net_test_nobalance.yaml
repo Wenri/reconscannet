@@ -1,6 +1,6 @@
 method: ISCNet
 seed: 10
-weight: out/chair_cls/model_255_0.4856.pt
+weight: out/balance/model_89_0.5116+.pt
 device:
   use_gpu: True
   gpu_ids: '1'
@@ -8,6 +8,7 @@ device:
 data:
   dataset: scannet
   path: data/ShapeNet
+  classes: cabinet_cat
   split: splits/fullscan
   num_point: 80000
   num_target: 256

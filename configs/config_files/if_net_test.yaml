@@ -1,13 +1,14 @@
 method: ISCNet
 seed: 10
-weight: out/table_cls/model_137_0.4906.pt
+weight: out/table_cls/model_232_0.4055+.pt
 device:
   use_gpu: True
-  gpu_ids: '0'
+  gpu_ids: '1'
   num_workers: 0
 data:
   dataset: scannet
   path: data/ShapeNet
+  classes: table_cat
   split: splits/fullscan
   num_point: 80000
   num_target: 256
