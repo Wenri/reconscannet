@@ -351,9 +351,8 @@ class PartialPointCloudField(Field):
             return None
 
         pointcloud_file = trimesh.load(file_path)
-
         total_pc = torch.from_numpy(pointcloud_file.vertices)
-        total_pc = total_pc @ roty.T.to(dtype=total_pc.dtype)
+        # total_pc = total_pc @ roty.T.to(dtype=total_pc.dtype)
 
         return {
             None: total_pc.float().numpy(),

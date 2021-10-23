@@ -68,7 +68,7 @@ class Trainer(object):
         idx = valid_id[torch.argmin(invalid_count)]
         return partial[idx]
 
-    def try_fix_partial(self, partial, full_pc, rdist_threshold=0.05):
+    def try_fix_partial(self, partial, full_pc, rdist_threshold=0.1):
         invalid_id = set()
         fixed_id = set()
         for idx in self.verify_alignment(partial, full_pc)[0].tolist():

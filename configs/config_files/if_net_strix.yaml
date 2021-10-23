@@ -16,7 +16,7 @@ data:
   pointcloud_n: 2688
   pointcloud_target_n: 1024
   pointcloud_noise: 0.02
-  aug_ratio: 0.05
+  aug_ratio: 0.3
   with_transforms: false
   use_cls_for_completion: True
   skip_propagate: True
