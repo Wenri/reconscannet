@@ -29,7 +29,7 @@ def evaluate(trainer, val_loader):
         total_invalid += len(invalid_id)
         total_fixed += len(fixed_id)
         teval.set_description(
-            '[metric val: %.4f, FIX: %d, INV: %d]' % (sum(metric_val) / len(metric_val), len(fixed_id), total_invalid))
+            '[metric val: %.4f, FIX: %d, INV: %d]' % (sum(metric_val) / len(metric_val), total_fixed, total_invalid))
     metric_val = sum(metric_val) / len(metric_val)
     print('total metric val:  %.4f' % metric_val)
     return metric_val
@@ -105,7 +105,7 @@ def main(args):
     # Intialize training
     # optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     # optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    optimizer = AdaBelief(model.parameters(), lr=1e-5)
+    optimizer = AdaBelief(model.parameters(), lr=args.lr)
     trainer = Trainer(model, exp_name='if_net_scannet', optimizer=optimizer, device=device,
                       warmup_iters=100, balance_weight=cfg['training']['balance_weight'])
 
@@ -175,10 +175,11 @@ def parse_args():
     parser.add_argument('--exit-after', type=int, default=-1,
                         help='Checkpoint and exit after specified number of seconds'
                              'with exit code 2.')
+    parser.add_argument('--lr', default=1e-4, type=float, help='initial learning rate')
 
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     matplotlib.use('Agg')
-    main(parse_args())
+    sys.exit(main(parse_args()))
