@@ -22,9 +22,10 @@ def evaluate(trainer, val_loader):
     metric_val = []
     teval = tqdm(val_loader, unit='images', unit_scale=val_loader.batch_size, file=sys.stdout, dynamic_ncols=True)
     for batch in teval:
-        val = trainer.eval_step(batch)
-        teval.set_description('[metric val: %.4f]' % (sum(val) / len(val)))
-        metric_val += val
+        val, invalid_id, fixed_id = trainer.eval_step(batch)
+        teval.set_description(
+            '[metric val: %.4f, FIX: %d, INV: %d]' % (sum(val) / len(val), len(fixed_id), len(invalid_id)))
+        metric_val += [v for idx, v in enumerate(val) if idx not in invalid_id]
     metric_val = sum(metric_val) / len(metric_val)
     print('total metric val:  %.4f' % metric_val)
     return metric_val
@@ -111,6 +112,7 @@ def main(args):
     while True:
         epoch_it += 1
         total_aug = 0
+
         for batch in train_loader:
             it += 1
             loss, aug, fixed_id, invalid_id = trainer.train_step(batch)

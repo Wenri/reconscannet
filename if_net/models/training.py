@@ -119,14 +119,17 @@ class Trainer(object):
         p = batch.get('points_iou').to(self.device)
         occ = batch.get('points_iou.occ').to(self.device)
         cls_codes = batch.get('category')
+        full_pc = batch.get('pc').to(self.device)
 
         with torch.no_grad():
+            invalid_id, fixed_id = self.try_fix_partial(partial, full_pc)
             c = self.model.infer_c(partial.transpose(1, 2), cls_codes_for_completion=cls_codes)
             z = self.model.get_z_from_prior((1,), sample=False, device=self.device)
             voxel_grids = pointcloud2voxel_fast(partial)
             occ_hat = self.model.decode(p, z, c, voxel_grids).logits
+            iou_list = compute_iou_cuda(occ_hat, occ).tolist()
 
-        return compute_iou_cuda(occ_hat, occ).tolist()
+        return iou_list, invalid_id, fixed_id
 
     def overscan_aug(self, *partial, overscan_factor=0.02):
         device = self.device
