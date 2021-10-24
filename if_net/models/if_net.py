@@ -95,23 +95,23 @@ class IFNet(nn.Module):
             p = torch.cat([p + d for d in self.displacments], dim=2)  # (B,1,7,num_samples,3)
             feature_0 = F.grid_sample(x, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
 
-            net = self.conv_in(x, c)
+            net = torch.nan_to_num(self.conv_in(x, c))
             feature_1 = F.grid_sample(net, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
             net = self.maxpool(net)
 
-            net = self.conv_0(net, c)
+            net = torch.nan_to_num(self.conv_0(net, c))
             feature_2 = F.grid_sample(net, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
             net = self.maxpool(net)
 
-            net = self.conv_1(net, c)
+            net = torch.nan_to_num(self.conv_1(net, c))
             feature_3 = F.grid_sample(net, p, padding_mode='border')  # out : (B,C (of x), 1,1,sample_num)
             net = self.maxpool(net)
 
-            net = self.conv_2(net, c)
+            net = torch.nan_to_num(self.conv_2(net, c))
             feature_4 = F.grid_sample(net, p, padding_mode='border')
             net = self.maxpool(net)
 
-            net = self.conv_3(net, c)
+            net = torch.nan_to_num(self.conv_3(net, c))
             feature_5 = F.grid_sample(net, p, padding_mode='border')
 
             # here every channel corresponds to one feature.
@@ -120,14 +120,14 @@ class IFNet(nn.Module):
                                  dim=1)  # (B, features, 1,7,sample_num)
             shape = features.shape
             features = features.view(shape[0], shape[1] * shape[3], shape[4])  # (B, featues_per_sample, samples_num)
-            features = self.actvn(self.fc_0(features))
+            features = self.actvn(torch.nan_to_num(self.fc_0(features)))
             features = features + p_features  # (B, featue_size, samples_num)
 
-        net = features
+        net = torch.nan_to_num(features)
         for block in self.blocks:
-            net = block(net, c)
+            net = torch.nan_to_num(block(net, c))
 
-        net = self.fc_out(net)
+        net = torch.nan_to_num(self.fc_out(net))
         out = net.squeeze(1)
 
         return out
@@ -217,7 +217,7 @@ class IFNet(nn.Module):
         :return:
         """
         logits = self(input_points_for_completion, z, features, voxel_grid)
-        p_r = dist.Bernoulli(logits=logits)
+        p_r = dist.Bernoulli(logits=torch.nan_to_num(logits))
         return p_r
 
     def infer_z(self, p, occ, c, device, **kwargs):

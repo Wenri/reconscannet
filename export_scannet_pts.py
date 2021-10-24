@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import os
 import struct
 from pathlib import Path
@@ -183,6 +184,9 @@ def run(opt, cfg):
     cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
 
     for cur_iter, data in enumerate(dataloader):
+        # if cur_iter <= 492:
+        #     continue
+
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
 
@@ -224,11 +228,15 @@ def run(opt, cfg):
             tri_to_mesh(obj_mesh, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_scan2cad.ply")
 
             scan_pts = points_from_scannet(scan_old_vert, *scannet_transfer) / overscan
-            scan_vert_mask = torch.all(torch.abs(scan_pts) <= 0.7, dim=1)
-            scan_face_mask = torch.all(scan_vert_mask[scan_mesh.faces], dim=1)
-            scan_mesh.vertices = scan_pts.cpu().numpy()
-            scan_submesh, = scan_mesh.submesh(np.nonzero(scan_face_mask.cpu().numpy()))
-            tri_to_mesh(scan_submesh, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_scan.ply")
+
+            for bound in itertools.count(start=0.7, step=0.1):
+                scan_vert_mask = torch.all(torch.abs(scan_pts) <= bound, dim=1)
+                scan_face_mask = torch.all(scan_vert_mask[scan_mesh.faces], dim=1)
+                if torch.any(scan_face_mask):
+                    scan_mesh.vertices = scan_pts.cpu().numpy()
+                    scan_submesh, = scan_mesh.submesh(np.nonzero(scan_face_mask.cpu().numpy()))
+                    tri_to_mesh(scan_submesh, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_scan.ply")
+                    break
 
         if not instance_models:
             continue
