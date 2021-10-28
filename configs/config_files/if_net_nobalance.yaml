@@ -2,7 +2,7 @@ method: onet
 data:
   dataset: Shapes3D
   path: data/ShapeNet
-  classes: display_cat
+  classes: sofa_cat
   train_split: train
   val_split: val
   test_split: test
@@ -32,7 +32,7 @@ model:
   z_dim: 64
   dmc_weight_prior: 10.
 training:
-  out_dir:  out/display_cls
+  out_dir:  out/sofa_cls
   batch_size: 32
   print_every: 10
   visualize_every: 2000

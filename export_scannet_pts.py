@@ -184,7 +184,7 @@ def run(opt, cfg):
     cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
 
     for cur_iter, data in enumerate(dataloader):
-        # if cur_iter <= 492:
+        # if cur_iter <= 931:
         #     continue
 
         bid = 0
