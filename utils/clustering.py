@@ -10,8 +10,11 @@ import trimesh
 from sklearn.cluster import k_means
 from sklearn.manifold import spectral_embedding
 from sklearn.metrics.pairwise import cosine_similarity
-from trimesh.repair import fix_normals
 from trimesh.constants import tol
+from trimesh.repair import fix_normals
+
+from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
+from utils.TriangleRayIntersection import TriangleRayIntersection
 
 CLUSTER_DIM = 3
 
@@ -82,6 +85,13 @@ def parse_args():
     return parser.parse_args()
 
 
+def check_is_verified(pts, mesh):
+    dir = -mesh.face_normals
+    pts = np.broadcast_to(pts, shape=dir.shape)
+
+    return TriangleRayIntersection(pts, dir, mesh.triangles[:, 0], mesh.triangles[:, 1], mesh.triangles[:, 2])
+
+
 def main(args):
     tol.facet_threshold = 5
 
@@ -97,6 +107,11 @@ def main(args):
         m.visual.face_colors[f, :3] = lut[(i + 1) % 256, 0]
 
     m.export(args.plyfile.with_suffix('.cls.ply'))
+
+    pts_list = [np.any(check_is_verified(pts, m)) for pts in create_grid_points_from_bounds(-0.55, 0.55, 32)]
+
+    print('Total Verified PTS:', sum(pts_list))
+
     return os.EX_OK
 
 

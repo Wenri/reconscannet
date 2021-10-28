@@ -1,5 +1,4 @@
-# Generated with SMOP  0.41
-from .libsmop import *
+import numpy as np
 
 
 def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
@@ -107,99 +106,84 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
     """
 
     # Check if all the sizes match
-    SameSize = (any(size(orig) == size(vert0)) and any(size(orig) == size(vert1)) and any(
-        size(orig) == size(vert2)) and any(size(orig) == size(dir)))
-    assert_(SameSize and size(orig, 2) == 3, 'All input vectors have to be in Nx3 format.')
+    assert orig.shape == vert0.shape and orig.shape == vert1.shape and orig.shape == vert2.shape and \
+           orig.shape == dir.shape and orig.shape[1] == 3, 'All input vectors have to be in Nx3 format.'
 
     # Read user preferences
     eps = 1e-05
-    planeType = 'two sided'
+    planeType = 'one sided'
     lineType = 'ray'
     border = 'normal'
-    fullReturn = copy(false)
+    fullReturn = False
 
     # Set up border parameter
-    if 'normal' == border:
-        zero = 0.0
-    else:
-        if 'inclusive' == border:
-            zero = eps
-        else:
-            if 'exclusive' == border:
-                zero = - eps
-            else:
-                error('Border parameter must be either "normal", "inclusive" or "exclusive"')
+    zero = {
+        'normal': 0.0,
+        'inclusive': np.finfo(float).eps,
+        'exclusive': -np.finfo(float).eps
+    }[border]
 
-    # initialize default output
-    intersect = false(size(orig, 1), 1)
-
-    t = np.inf + zeros(size(orig, 1), 1)
-    u = copy(t)
-    v = copy(t)
-    xcoor = np.nan + zeros(size(orig))
     # Find faces parallel to the ray
     edge1 = vert1 - vert0
-
     edge2 = vert2 - vert0
     tvec = orig - vert0
 
-    pvec = np.cross(dir, edge2, 2)
+    pvec = np.cross(dir, edge2)
 
-    det = sum(np.multiply(edge1, pvec), 2)
+    det = np.sum(np.multiply(edge1, pvec), axis=-1)
 
     if 'two sided' == planeType:
-        angleOK = (abs(det) > eps)
+        angleOK = abs(det) > eps
     else:
         if 'one sided' == planeType:
-            angleOK = (det > eps)
+            angleOK = det > eps
         else:
-            error('Triangle parameter must be either "one sided" or "two sided"')
+            raise ValueError('Triangle parameter must be either "one sided" or "two sided"')
 
-    if all(logical_not(angleOK)):
-        return intersect, t, u, v, xcoor
+    if not np.any(angleOK):
+        return angleOK
 
     # Different behavior depending on one or two sided triangles
-    det[logical_not(angleOK)] = np.nan
+    det[np.logical_not(angleOK)] = np.nan
 
-    u = sum(np.multiply(tvec, pvec), 2) / det
+    u = np.sum(np.multiply(tvec, pvec), axis=-1) / det
 
     if fullReturn:
         # calculate all variables for all line/triangle pairs
-        qvec = np.cross(tvec, edge1, 2)
-        v = sum(np.multiply(dir, qvec), 2) / det
-        t = sum(np.multiply(edge2, qvec), 2) / det
+        qvec = np.cross(tvec, edge1)
+        v = np.sum(np.multiply(dir, qvec), axis=-1) / det
+        t = np.sum(np.multiply(edge2, qvec), axis=-1) / det
         # test if line/plane intersection is within the triangle
-        ok = (logical_and(angleOK, u) >= logical_and(- zero, v) >= logical_and(- zero, u + v) <= 1.0 + zero)
+        ok = np.logical_and(angleOK, np.logical_and(np.logical_and(u >= - zero, v >= - zero), u + v <= 1.0 + zero))
     else:
         # limit some calculations only to line/triangle pairs where it makes
         # a difference. It is tempting to try to push this concept of
         # limiting the number of calculations to only the necessary to "u"
         # and "t" but that produces slower code
-        v = np.nan + zeros(size(u))
-        t = copy(v)
-        ok = (logical_and(angleOK, u) >= logical_and(- zero, u) <= 1.0 + zero)
+        v = np.full_like(u, fill_value=np.nan)
+        t = np.full_like(u, fill_value=np.nan)
+        ok = np.logical_and(angleOK, np.logical_and(u >= - zero, u <= 1.0 + zero))
         # if all line/plane intersections are outside the triangle than no intersections
-        if logical_not(any(ok)):
-            intersect = copy(ok)
-            return intersect, t, u, v, xcoor
-        qvec = np.cross(tvec[ok, :], edge1[ok, :], 2)
-        v[ok, :] = sum(np.multiply(dir[ok, :], qvec), 2) / det[ok, :]
+        if not np.any(ok):
+            return ok
+        qvec = np.cross(tvec[ok, :], edge1[ok, :])
+        v[ok] = np.sum(np.multiply(dir[ok, :], qvec), axis=-1) / det[ok]
         if lineType != 'line':
-            t[ok, :] = sum(np.multiply(edge2[ok, :], qvec), 2) / det[ok, :]
+            t[ok] = np.sum(np.multiply(edge2[ok, :], qvec), axis=-1) / det[ok]
         # test if line/plane intersection is within the triangle
-        ok = (logical_and(ok, v) >= logical_and(- zero, u + v) <= 1.0 + zero)
+        ok = np.logical_and(ok, np.logical_and(v >= - zero, u + v <= 1.0 + zero))
 
-    # Test where along the line the line/plane intersection occurs
+        # Test where along the line the line/plane intersection occurs
     if 'line' == lineType:
-        intersect = copy(ok)
+        intersect = ok
     else:
         if 'ray' == lineType:
-            intersect = (logical_and(ok, t) >= - zero)
+            intersect = np.logical_and(ok, t >= - zero)
         else:
             if 'segment' == lineType:
-                intersect = (logical_and(ok, t) >= logical_and(- zero, t) <= 1.0 + zero)
+                intersect = np.logical_and(ok, np.logical_and(t >= - zero, t <= 1.0 + zero))
             else:
-                error('lineType parameter must be either "line", "ray" or "segment"')
+                raise ValueError('lineType parameter must be either "line", "ray" or "segment"')
 
     # calculate intersection coordinates if requested
     # if (nargout > 4):
