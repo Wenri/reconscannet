@@ -13,6 +13,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from trimesh.constants import tol
 from trimesh.repair import fix_normals
 
+from export_scannet_pts import write_pointcloud
 from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
 from utils.TriangleRayIntersection import TriangleRayIntersection
 
@@ -108,9 +109,12 @@ def main(args):
 
     m.export(args.plyfile.with_suffix('.cls.ply'))
 
-    pts_list = [np.any(check_is_verified(pts, m)) for pts in create_grid_points_from_bounds(-0.55, 0.55, 32)]
+    pts = create_grid_points_from_bounds(-0.55, 0.55, 32)
+    pts_list = np.fromiter((np.any(check_is_verified(p, m)) for p in pts), dtype=np.bool_, count=pts.shape[0])
 
-    print('Total Verified PTS:', sum(pts_list))
+    print('Total Verified PTS:', np.count_nonzero(pts_list))
+
+    write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[np.logical_not(pts_list)])
 
     return os.EX_OK
 

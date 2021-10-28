@@ -79,18 +79,6 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
 
     License: BSD license (http://en.wikipedia.org/wiki/BSD_licenses)
 
-    # Transpose inputs if needed
-    if size(orig, 1) == 3 and size(orig, 2) != 3:
-        orig = orig.T
-    if size(dir, 1) == 3 and size(dir, 2) != 3:
-        dir = dir.T
-    if size(vert0, 1) == 3 and size(vert0, 2) != 3:
-        vert0 = vert0.T
-    if size(vert1, 1) == 3 and size(vert1, 2) != 3:
-        vert1 = vert1.T
-    if size(vert2, 1) == 3 and size(vert2, 2) != 3:
-        vert2 = vert2.T
-
     # In case of single points clone them to the same size as the rest
     N = max(concat([size(orig, 1), size(dir, 1), size(vert0, 1), size(vert1, 1), size(vert2, 1)]))
     if size(orig, 1) == 1 and N > 1 and size(orig, 2) == 3:
