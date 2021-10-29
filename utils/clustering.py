@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -87,78 +88,119 @@ def parse_args():
     return parser.parse_args()
 
 
-def extract_adj_faces(mesh, selected_mask):
-    selected_mask = np.any(selected_mask[mesh.face_adjacency], axis=-1)
-    selected_mask = np.logical_and(mesh.face_adjacency_convex, selected_mask)
-
-    vertices = torch.from_numpy(mesh.vertices)
-    pairs = torch.from_numpy(mesh.face_normals)[mesh.face_adjacency[selected_mask]]
-    edges = vertices[mesh.face_adjacency_edges[selected_mask]]
-    unshared = vertices[mesh.face_adjacency_unshared[selected_mask]]
-    edges_vec = edges[:, 0] - edges[:, 1]
-    edges_vec /= torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
-    new_norms = torch.cross(pairs, edges_vec.unsqueeze(1).expand(-1, 2, -1))
-
-    test_sign = unshared - edges[:, 0].unsqueeze(1)
-    test_sign = torch.sign(torch.matmul(test_sign.unsqueeze(2), new_norms.unsqueeze(3)).squeeze(3))
-    new_norms *= test_sign
-
-    return edges, new_norms, mesh.face_adjacency[selected_mask]
-
-
-def extract_broken_pts(mesh, selected_mask):
-    broken_pts = frozenset(mesh.faces[np.logical_not(selected_mask)].flat)
-    return broken_pts
-
-
-def check_is_verified(pts, mesh, v):
-    dir = -mesh.face_normals[v]
-    pts = np.broadcast_to(pts, shape=dir.shape)
-
-    in_trig = TriangleRayIntersection(pts, dir, mesh.triangles[v, 0], mesh.triangles[v, 1], mesh.triangles[v, 2])
-    # mesh.visual.face_colors[in_trig, :3] = np.array((0, 255, 0))
-    return np.any(in_trig)
-
-
-def check_is_edge(pts, edges, edge_norms, broken_pts, face_adjacency, mesh):
-    pts_vec = edges[:, 0] - pts
-
-    edges_vec = edges[:, 0] - edges[:, 1]
-    edges_len = torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
-    edges_vec /= edges_len
-
-    proj_len = torch.matmul(pts_vec.unsqueeze(1), edges_vec.unsqueeze(2)).squeeze(2).squeeze(1)
-    is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len.squeeze(1))
-
-    proj_sign = pts_vec.unsqueeze(1).expand(-1, 2, -1)
-    proj_sign = torch.matmul(proj_sign.unsqueeze(2), edge_norms.unsqueeze(3)).squeeze(3).squeeze(2)
-    is_proj = torch.all(proj_sign > 0, dim=1)
-
-    in_edge = torch.logical_and(is_length, is_proj)
-    mesh.visual.face_colors[face_adjacency[in_edge, 0], :3] = np.array((0, 0, 255))
-    mesh.visual.face_colors[face_adjacency[in_edge, 1], :3] = np.array((0, 255, 0))
-
-    return torch.any(in_edge).item()
-
-
 def get_labeled_face(mesh):
-    face_color = np.all(np.logical_and(
-        mesh.visual.face_colors > np.array((128, -1, -1, -1), dtype=np.int_),
-        mesh.visual.face_colors <= np.array((255, 128, 128, 255), dtype=np.int_)), axis=-1)
+    face_colors = torch.from_numpy(mesh.visual.face_colors)
+    face_mask = torch.all(torch.logical_and(
+        face_colors >= torch.as_tensor((128, 0, 0, 0), dtype=face_colors.dtype),
+        face_colors <= torch.as_tensor((255, 128, 128, 255), dtype=face_colors.dtype)), dim=-1)
 
-    return face_color
+    return face_mask
+
+
+class PreCalcMesh:
+    def __init__(self, m):
+        assert m.is_watertight
+        fix_normals(m)
+        self.mesh = m
+        self.face_mask = get_labeled_face(m)
+        self.edges, self.edge_norms, selected_mask = self.extract_adj_faces()
+        self.face_adjacency = torch.from_numpy(m.face_adjacency)[selected_mask]
+        self.face_adjacency_edges = torch.from_numpy(m.face_adjacency_edges)[selected_mask]
+        self.good_pts = self.extract_broken_pts()
+
+    def extract_adj_faces(self):
+        mesh = self.mesh
+
+        selected_mask = torch.all(self.face_mask[mesh.face_adjacency], dim=-1)
+        selected_mask = torch.logical_and(torch.from_numpy(mesh.face_adjacency_convex), selected_mask)
+
+        vertices = torch.from_numpy(mesh.vertices)
+        pairs = torch.from_numpy(mesh.face_normals)[torch.from_numpy(mesh.face_adjacency)[selected_mask]]
+        edges = vertices[torch.from_numpy(mesh.face_adjacency_edges)[selected_mask]]
+        unshared = vertices[torch.from_numpy(mesh.face_adjacency_unshared)[selected_mask]]
+
+        edges_vec = edges[:, 0] - edges[:, 1]
+        edges_vec /= torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
+        new_norms = torch.cross(pairs, edges_vec.unsqueeze(1).expand(-1, 2, -1))
+
+        test_sign = unshared - edges[:, 0].unsqueeze(1)
+        test_sign = torch.sign(torch.matmul(test_sign.unsqueeze(2), new_norms.unsqueeze(3)).squeeze(3))
+        new_norms *= test_sign
+
+        return edges, new_norms, selected_mask
+
+    def extract_broken_pts(self):
+        broken_pts = frozenset(torch.from_numpy(self.mesh.faces)[torch.logical_not(self.face_mask)].flatten().tolist())
+        good_pts = defaultdict(set)
+        for a, b in self.mesh.edges_unique:
+            if a not in broken_pts:
+                good_pts[a.item()].add(b.item())
+            if b not in broken_pts:
+                good_pts[b.item()].add(a.item())
+
+        return good_pts
+
+    def check_is_verified(self, pts):
+        v = self.face_mask
+        mesh = self.mesh
+
+        dir = -mesh.face_normals[v]
+        pts = np.broadcast_to(pts, shape=dir.shape)
+
+        in_trig = TriangleRayIntersection(pts, dir, mesh.triangles[v, 0], mesh.triangles[v, 1], mesh.triangles[v, 2])
+        # mesh.visual.face_colors[in_trig, :3] = np.array((0, 255, 0))
+        return np.any(in_trig)
+
+    def check_is_edge(self, pts):
+        edges = self.edges
+        pts = torch.from_numpy(pts)
+
+        pts_vec = edges[:, 0] - pts
+
+        proj_sign = pts_vec.unsqueeze(1).expand(-1, 2, -1)
+        proj_sign = torch.matmul(proj_sign.unsqueeze(2), self.edge_norms.unsqueeze(3)).squeeze(3).squeeze(2)
+        is_proj = torch.all(proj_sign > 0, dim=1)
+
+        edges_vec = edges[is_proj, 0] - edges[is_proj, 1]
+        edges_len = torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
+        edges_vec /= edges_len
+        proj_len = torch.matmul(pts_vec[is_proj].unsqueeze(1), edges_vec.unsqueeze(2)).squeeze(2).squeeze(1)
+        is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len.squeeze(1))
+
+        face_adjacency = self.face_adjacency[is_proj]
+        face_adjacency_edges = self.face_adjacency_edges[is_proj]
+        self.mesh.visual.face_colors[face_adjacency[is_length, 0].numpy(), :3] = np.array((0, 0, 255))
+        self.mesh.visual.face_colors[face_adjacency[is_length, 1].numpy(), :3] = np.array((0, 255, 0))
+
+        return torch.any(is_length).item() or self.check_is_extended(pts, face_adjacency_edges, proj_len)
+
+    def check_is_extended(self, pts, edges, proj_len):
+        if not len(edges):
+            return False
+
+        candidate_pts = torch.where(proj_len < 0, edges[:, 0], edges[:, 1])
+        for idx in candidate_pts.tolist():
+            tid = self.good_pts.get(idx)
+            if tid is None:
+                continue
+            target_pts = torch.from_numpy(self.mesh.vertices[np.fromiter(tid, count=len(tid), dtype=np.int_)])
+            center_pts = torch.from_numpy(self.mesh.vertices[idx])
+            edges_vec = target_pts - center_pts
+            edges_len = torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
+            edges_vec /= edges_len
+            pts_vec = pts - center_pts
+            proj_len = torch.mm(edges_vec, pts_vec.unsqueeze(1)).squeeze(1)
+            is_in = proj_len <= edges_len
+            if torch.all(is_in):
+                return True
+
+        return False
 
 
 def main(args):
     tol.facet_threshold = 5
 
-    m = trimesh.load(args.plyfile, force='mesh')
-    assert m.is_watertight
-
-    fix_normals(m)
-    face_mask = get_labeled_face(m)
-    edges, edge_norms, adj = extract_adj_faces(m, face_mask)
-    broken_pts = extract_broken_pts(m, face_mask)
+    m = PreCalcMesh(trimesh.load(args.plyfile, force='mesh'))
 
     # full_labels = get_normal_cls(m.face_normals)
     lut = gen_lut()
@@ -167,15 +209,14 @@ def main(args):
     #     m.visual.face_colors[f, :3] = lut[(i + 1) % 256, 0]
 
     pts = create_grid_points_from_bounds(-0.55, .55, 32)
-    pts_list = np.fromiter((check_is_verified(p, m, face_mask) for p in pts), dtype=np.bool_, count=pts.shape[0])
-    edge_list = np.fromiter((check_is_edge(p, edges, edge_norms, broken_pts, adj, m) for p in pts),
-                            dtype=np.bool_, count=pts.shape[0])
+    edge_list = np.fromiter((m.check_is_edge(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
+    pts_list = np.fromiter((m.check_is_verified(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
 
     pts_mask = np.logical_or(edge_list, pts_list)
     print('Total Verified PTS:', np.count_nonzero(pts_mask))
 
     write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[np.logical_not(pts_mask)])
-    m.export(args.plyfile.with_suffix('.cls.ply'))
+    m.mesh.export(args.plyfile.with_suffix('.cls.ply'))
 
     return os.EX_OK
 
