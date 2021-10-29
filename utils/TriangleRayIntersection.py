@@ -161,7 +161,7 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
         # test if line/plane intersection is within the triangle
         ok = np.logical_and(ok, np.logical_and(v >= - zero, u + v <= 1.0 + zero))
 
-        # Test where along the line the line/plane intersection occurs
+    # Test where along the line the line/plane intersection occurs
     if 'line' == lineType:
         intersect = ok
     else:
