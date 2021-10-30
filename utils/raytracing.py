@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 from collections import defaultdict
+from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
@@ -25,36 +26,70 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_labeled_face(mesh):
-    face_colors = torch.from_numpy(mesh.visual.face_colors)
+def get_labeled_face(mesh, device):
+    face_colors = torch.from_numpy(mesh.visual.face_colors).to(device, dtype=torch.uint8)
     face_mask = torch.all(torch.logical_and(
-        face_colors >= torch.as_tensor((128, 0, 0, 0), dtype=face_colors.dtype),
-        face_colors <= torch.as_tensor((255, 128, 128, 255), dtype=face_colors.dtype)), dim=-1)
+        face_colors >= torch.as_tensor((128, 0, 0, 0), dtype=face_colors.dtype, device=device),
+        face_colors <= torch.as_tensor((255, 128, 128, 255), dtype=face_colors.dtype, device=device)), dim=-1)
 
     return face_mask
 
 
+class CheckIsExtended:
+    def __init__(self, vertices, good_pts):
+        self.vertices = np.asarray(vertices)
+        self.good_pts = good_pts
+
+    def __call__(self, *args, **kwargs):
+        pts, edges, proj_len = args[0]
+
+        if not len(edges):
+            return False
+
+        candidate_pts = np.where(proj_len < 0, edges[:, 0], edges[:, 1])
+        for idx in candidate_pts:
+            tid = self.good_pts.get(idx)
+            if tid is None:
+                continue
+            target_pts = self.vertices[np.fromiter(tid, count=len(tid), dtype=np.int_)]
+            center_pts = self.vertices[idx]
+            edges_vec = target_pts - center_pts
+            edges_len = np.linalg.norm(edges_vec, axis=-1, keepdims=True)
+            edges_vec /= edges_len
+            pts_vec = pts - center_pts
+            proj_len = np.matmul(edges_vec, np.expand_dims(pts_vec, 1)).squeeze(1)
+            is_in = proj_len <= edges_len
+            if np.all(is_in):
+                return True
+
+        return False
+
+
 class PreCalcMesh:
-    def __init__(self, m):
+    def __init__(self, m, device):
         assert m.is_watertight
         fix_normals(m)
+        self.device = device
         self.mesh = m
-        self.face_mask = get_labeled_face(m)
+        self.face_mask = get_labeled_face(m, device)
         self.edges, self.edge_norms, selected_mask = self.extract_adj_faces()
         self.face_adjacency = torch.from_numpy(m.face_adjacency)[selected_mask]
         self.face_adjacency_edges = torch.from_numpy(m.face_adjacency_edges)[selected_mask]
-        self.good_pts = self.extract_broken_pts()
+        self.check_ext = CheckIsExtended(self.mesh.vertices, self.extract_broken_pts())
+        self.pool = Pool()
 
     def extract_adj_faces(self):
         mesh = self.mesh
+        device = self.device
 
         selected_mask = torch.all(self.face_mask[mesh.face_adjacency], dim=-1)
-        selected_mask = torch.logical_and(torch.from_numpy(mesh.face_adjacency_convex), selected_mask)
+        selected_mask = torch.logical_and(torch.from_numpy(mesh.face_adjacency_convex).to(device=device), selected_mask)
 
-        vertices = torch.from_numpy(mesh.vertices)
-        pairs = torch.from_numpy(mesh.face_normals)[torch.from_numpy(mesh.face_adjacency)[selected_mask]]
-        edges = vertices[torch.from_numpy(mesh.face_adjacency_edges)[selected_mask]]
-        unshared = vertices[torch.from_numpy(mesh.face_adjacency_unshared)[selected_mask]]
+        vertices = torch.from_numpy(mesh.vertices).to(device=device, dtype=torch.float)
+        edges = vertices[torch.from_numpy(mesh.face_adjacency_edges).to(device=device)[selected_mask]]
+        unshared = vertices[torch.from_numpy(mesh.face_adjacency_unshared).to(device=device)[selected_mask]]
+        face_adjacency = torch.from_numpy(mesh.face_adjacency).to(device=device)[selected_mask]
+        pairs = torch.from_numpy(mesh.face_normals).to(device=device, dtype=torch.float)[face_adjacency]
 
         edges_vec = edges[:, 0] - edges[:, 1]
         edges_vec /= torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
@@ -81,8 +116,8 @@ class PreCalcMesh:
         v = self.face_mask
         mesh = self.mesh
 
-        normals = -torch.from_numpy(mesh.face_normals)[v]
-        triangles = torch.from_numpy(mesh.triangles)
+        normals = torch.neg(torch.from_numpy(mesh.face_normals).to(device=self.device, dtype=torch.float)[v])
+        triangles = torch.from_numpy(mesh.triangles).to(device=self.device, dtype=torch.float)
 
         in_trig = TriangleRayIntersection(pts, normals, triangles[v, 0], triangles[v, 1], triangles[v, 2])
         # mesh.visual.face_colors[in_trig, :3] = np.array((0, 255, 0))
@@ -110,41 +145,26 @@ class PreCalcMesh:
 
         pts_mask = torch.any(is_ok, dim=-1)
 
-        for i in torch.logical_not(pts_mask).nonzero(as_tuple=True)[0]:
-            pts_mask[i] = self.check_is_extended(pts[i], self.face_adjacency_edges[is_proj[i]], proj_len[i, is_proj[i]])
+        pts_list = torch.logical_not(pts_mask).nonzero(as_tuple=True)[0].tolist()
+
+        params = ((pts[i].cpu().numpy(),
+                   self.face_adjacency_edges[is_proj[i]].numpy(),
+                   proj_len[i, is_proj[i]].cpu().numpy()) for i in pts_list)
+
+        pts_mask[pts_list] = torch.as_tensor(self.pool.map(self.check_ext, params), dtype=pts_mask.dtype,
+                                             device=pts_mask.device)
 
         return pts_mask
-
-    def check_is_extended(self, pts, edges, proj_len):
-        if not len(edges):
-            return False
-
-        candidate_pts = torch.where(proj_len < 0, edges[:, 0], edges[:, 1])
-        for idx in candidate_pts.tolist():
-            tid = self.good_pts.get(idx)
-            if tid is None:
-                continue
-            target_pts = torch.from_numpy(self.mesh.vertices[np.fromiter(tid, count=len(tid), dtype=np.int_)])
-            center_pts = torch.from_numpy(self.mesh.vertices[idx])
-            edges_vec = target_pts - center_pts
-            edges_len = torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
-            edges_vec /= edges_len
-            pts_vec = pts - center_pts
-            proj_len = torch.mm(edges_vec, pts_vec.unsqueeze(1)).squeeze(1)
-            is_in = proj_len <= edges_len
-            if torch.all(is_in):
-                return True
-
-        return False
 
 
 def main(args):
     tol.facet_threshold = 5
+    device = torch.device('cuda')
 
-    m = PreCalcMesh(trimesh.load(args.plyfile, force='mesh'))
+    m = PreCalcMesh(trimesh.load(args.plyfile, force='mesh'), device=device)
 
-    pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 64))
-    pts_split = torch.tensor_split(pts, 64)
+    pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 128)).to(device=device, dtype=torch.float)
+    pts_split = torch.tensor_split(pts, 32)
     pts_mask = torch.cat([m.check_is_verified(p) for p in pts_split])
     pts_rev = torch.logical_not(pts_mask)
     pts_split = torch.tensor_split(pts[pts_rev], 32)
@@ -152,7 +172,7 @@ def main(args):
 
     print('Total Verified PTS:', torch.count_nonzero(pts_mask))
 
-    write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[np.logical_not(pts_mask)].numpy())
+    write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[torch.logical_not(pts_mask)].cpu().numpy())
     m.mesh.export(args.plyfile.with_suffix('.cls.ply'))
 
     return os.EX_OK
