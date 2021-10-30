@@ -2,7 +2,9 @@ import argparse
 import os
 import sys
 from collections import defaultdict
+from contextlib import closing
 from multiprocessing import Pool
+from multiprocessing import shared_memory
 from pathlib import Path
 
 import numpy as np
@@ -11,9 +13,9 @@ import trimesh
 from trimesh.constants import tol
 from trimesh.repair import fix_normals
 
+from TriangleRayIntersection import TriangleRayIntersection
 from export_scannet_pts import write_pointcloud
 from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
-from utils.TriangleRayIntersection import TriangleRayIntersection
 
 
 def parse_args():
@@ -36,31 +38,35 @@ def get_labeled_face(mesh, device):
 
 
 class CheckIsExtended:
-    def __init__(self, vertices, good_pts):
-        self.vertices = np.asarray(vertices)
+    def __init__(self, shm_name, shm_shape, shm_dtype, good_pts):
+        self.shm_name = shm_name
+        self.shm_shape = shm_shape
+        self.shm_dtype = shm_dtype
         self.good_pts = good_pts
 
     def __call__(self, *args, **kwargs):
-        pts, edges, proj_len = args[0]
-
+        pts, edges, proj_len = args
         if not len(edges):
             return False
 
-        candidate_pts = np.where(proj_len < 0, edges[:, 0], edges[:, 1])
-        for idx in candidate_pts:
-            tid = self.good_pts.get(idx)
-            if tid is None:
-                continue
-            target_pts = self.vertices[np.fromiter(tid, count=len(tid), dtype=np.int_)]
-            center_pts = self.vertices[idx]
-            edges_vec = target_pts - center_pts
-            edges_len = np.linalg.norm(edges_vec, axis=-1, keepdims=True)
-            edges_vec /= edges_len
-            pts_vec = pts - center_pts
-            proj_len = np.matmul(edges_vec, np.expand_dims(pts_vec, 1)).squeeze(1)
-            is_in = proj_len <= edges_len
-            if np.all(is_in):
-                return True
+        with closing(shared_memory.SharedMemory(name=self.shm_name)) as shm:
+            vertices = np.ndarray(self.shm_shape, dtype=self.shm_dtype, buffer=shm.buf)
+
+            candidate_pts = np.where(proj_len < 0, edges[:, 0], edges[:, 1])
+            for idx in candidate_pts:
+                tid = self.good_pts.get(idx)
+                if tid is None:
+                    continue
+                target_pts = vertices[np.fromiter(tid, count=len(tid), dtype=np.int_)]
+                center_pts = vertices[idx]
+                edges_vec = target_pts - center_pts
+                edges_len = np.linalg.norm(edges_vec, axis=-1, keepdims=True)
+                edges_vec /= edges_len
+                pts_vec = pts - center_pts
+                proj_len = np.matmul(edges_vec, np.expand_dims(pts_vec, 1)).squeeze(1)
+                is_in = proj_len <= edges_len
+                if np.all(is_in):
+                    return True
 
         return False
 
@@ -75,8 +81,18 @@ class PreCalcMesh:
         self.edges, self.edge_norms, selected_mask = self.extract_adj_faces()
         self.face_adjacency = torch.from_numpy(m.face_adjacency)[selected_mask]
         self.face_adjacency_edges = torch.from_numpy(m.face_adjacency_edges)[selected_mask]
-        self.check_ext = CheckIsExtended(self.mesh.vertices, self.extract_broken_pts())
+
+        shm = shared_memory.SharedMemory(create=True, size=m.vertices.nbytes)
+        b = np.ndarray(m.vertices.shape, dtype=m.vertices.dtype, buffer=shm.buf)
+        b[:] = m.vertices[:]
+
+        self.shm = shm
+        self.check_ext = CheckIsExtended(shm.name, m.vertices.shape, m.vertices.dtype, self.extract_broken_pts())
         self.pool = Pool()
+
+    def __del__(self):
+        self.shm.close()
+        self.shm.unlink()
 
     def extract_adj_faces(self):
         mesh = self.mesh
@@ -138,10 +154,10 @@ class PreCalcMesh:
         is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len.squeeze(-1))
 
         is_ok = torch.logical_and(is_proj, is_length)
-        active_face = torch.any(is_ok, dim=0)
 
-        self.mesh.visual.face_colors[self.face_adjacency[active_face, 0].numpy(), :3] = np.array((0, 0, 255))
-        self.mesh.visual.face_colors[self.face_adjacency[active_face, 1].numpy(), :3] = np.array((0, 255, 0))
+        # active_face = torch.any(is_ok, dim=0)
+        # self.mesh.visual.face_colors[self.face_adjacency[active_face, 0].numpy(), :3] = np.array((0, 0, 255))
+        # self.mesh.visual.face_colors[self.face_adjacency[active_face, 1].numpy(), :3] = np.array((0, 255, 0))
 
         pts_mask = torch.any(is_ok, dim=-1)
 
@@ -151,8 +167,8 @@ class PreCalcMesh:
                    self.face_adjacency_edges[is_proj[i]].numpy(),
                    proj_len[i, is_proj[i]].cpu().numpy()) for i in pts_list)
 
-        pts_mask[pts_list] = torch.as_tensor(self.pool.map(self.check_ext, params), dtype=pts_mask.dtype,
-                                             device=pts_mask.device)
+        map_ret = self.pool.starmap(self.check_ext, params)
+        pts_mask[pts_list] = torch.as_tensor(map_ret, dtype=pts_mask.dtype, device=pts_mask.device)
 
         return pts_mask
 
@@ -164,13 +180,13 @@ def main(args):
     m = PreCalcMesh(trimesh.load(args.plyfile, force='mesh'), device=device)
 
     pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 128)).to(device=device, dtype=torch.float)
-    pts_split = torch.tensor_split(pts, 32)
+    pts_split = torch.tensor_split(pts, 16)
     pts_mask = torch.cat([m.check_is_verified(p) for p in pts_split])
     pts_rev = torch.logical_not(pts_mask)
-    pts_split = torch.tensor_split(pts[pts_rev], 32)
+    pts_split = torch.tensor_split(pts[pts_rev], 16)
     pts_mask[pts_rev] = torch.cat([m.check_is_edge(p) for p in pts_split])
 
-    print('Total Verified PTS:', torch.count_nonzero(pts_mask))
+    print('Total Verified PTS:', torch.count_nonzero(pts_mask).item())
 
     write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[torch.logical_not(pts_mask)].cpu().numpy())
     m.mesh.export(args.plyfile.with_suffix('.cls.ply'))
