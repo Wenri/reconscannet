@@ -145,16 +145,14 @@ class PreCalcMesh:
         mesh = self.mesh
 
         normals = -torch.from_numpy(mesh.face_normals)[v]
-        pts = torch.broadcast_to(torch.from_numpy(pts), normals.shape)
         triangles = torch.from_numpy(mesh.triangles)
 
         in_trig = TriangleRayIntersection(pts, normals, triangles[v, 0], triangles[v, 1], triangles[v, 2])
         # mesh.visual.face_colors[in_trig, :3] = np.array((0, 255, 0))
-        return torch.any(in_trig).item()
+        return torch.any(in_trig, dim=-1)
 
     def check_is_edge(self, pts):
         edges = self.edges
-        pts = torch.from_numpy(pts)
 
         pts_vec = edges[:, 0] - pts
 
@@ -209,15 +207,16 @@ def main(args):
     # for i, f in enumerate(m.facets):
     #     m.visual.face_colors[f, :3] = lut[(i + 1) % 256, 0]
 
-    pts = create_grid_points_from_bounds(-0.55, .55, 32)
-    pts_mask = np.fromiter((m.check_is_verified(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
-    pts_rev = np.logical_not(pts_mask)
-    pts_sub = pts[pts_rev]
-    pts_mask[pts_rev] = np.fromiter((m.check_is_edge(p) for p in pts_sub), dtype=np.bool_, count=pts_sub.shape[0])
+    pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 64))
+    pts_split = torch.tensor_split(pts, 64)
+    pts_mask = torch.cat([m.check_is_verified(p) for p in pts_split])
+    pts_rev = torch.logical_not(pts_mask)
+    spts = pts[pts_rev]
+    pts_mask[pts_rev] = torch.from_numpy(np.fromiter(map(m.check_is_edge, spts), dtype=np.bool_, count=spts.shape[0]))
 
-    print('Total Verified PTS:', np.count_nonzero(pts_mask))
+    print('Total Verified PTS:', torch.count_nonzero(pts_mask))
 
-    write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[np.logical_not(pts_mask)])
+    write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[np.logical_not(pts_mask)].numpy())
     m.mesh.export(args.plyfile.with_suffix('.cls.ply'))
 
     return os.EX_OK

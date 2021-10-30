@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
+def TriangleRayIntersection(orig, normals, vert0, vert1, vert2):
     """TRIANGLERAYINTERSECTION Ray/triangle intersection.
        INTERSECT = TriangleRayIntersection(ORIG, DIR, VERT1, VERT2, VERT3)
          calculates ray/triangle intersections using the algorithm proposed
@@ -95,15 +95,15 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
     """
 
     # Check if all the sizes match
-    assert orig.shape == vert0.shape and orig.shape == vert1.shape and orig.shape == vert2.shape and \
-           orig.shape == dir.shape and orig.shape[1] == 3, 'All input vectors have to be in Nx3 format.'
+    assert normals.shape == vert0.shape and normals.shape == vert1.shape and normals.shape == vert2.shape and \
+           normals.shape[1] == 3, 'All input vectors have to be in Nx3 format.'
 
     # Read user preferences
     eps = 1e-05
     planeType = 'one sided'
     lineType = 'ray'
     border = 'normal'
-    fullReturn = False
+    fullReturn = True
 
     # Set up border parameter
     zero = {
@@ -113,11 +113,12 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
     }[border]
 
     # Find faces parallel to the ray
+    n_pts = orig.shape[0]
+    n_faces = vert0.shape[0]
     edge1 = vert1 - vert0
     edge2 = vert2 - vert0
-    tvec = orig - vert0
 
-    pvec = torch.cross(dir, edge2)
+    pvec = torch.cross(normals, edge2, dim=-1)
 
     det = torch.sum(torch.multiply(edge1, pvec), dim=-1)
 
@@ -132,6 +133,7 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
     if not torch.any(angleOK):
         return angleOK
 
+    tvec = orig.unsqueeze(1).expand(-1, n_faces, -1) - vert0
     # Different behavior depending on one or two sided triangles
     det[torch.logical_not(angleOK)] = np.nan
 
@@ -139,8 +141,8 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
 
     if fullReturn:
         # calculate all variables for all line/triangle pairs
-        qvec = torch.cross(tvec, edge1)
-        v = torch.sum(torch.multiply(dir, qvec), dim=-1) / det
+        qvec = torch.cross(tvec, edge1.unsqueeze(0).expand(n_pts, -1, -1), dim=-1)
+        v = torch.sum(torch.multiply(normals, qvec), dim=-1) / det
         t = torch.sum(torch.multiply(edge2, qvec), dim=-1) / det
         # test if line/plane intersection is within the triangle
         ok = torch.logical_and(angleOK, torch.logical_and(
@@ -156,10 +158,11 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
         # if all line/plane intersections are outside the triangle than no intersections
         if not torch.any(ok):
             return ok
-        qvec = torch.cross(tvec[ok, :], edge1[ok, :])
-        v[ok] = torch.sum(torch.multiply(dir[ok, :], qvec), dim=-1) / det[ok]
+        qvec = torch.cross(tvec[ok, :], edge1.unsqueeze(0).expand(n_pts, -1, -1)[ok, :], dim=-1)
+        det_ok = det.unsqueeze(0).expand(n_pts, -1)[ok]
+        v[ok] = torch.sum(torch.multiply(normals.unsqueeze(0).expand(n_pts, -1, -1)[ok, :], qvec), dim=-1) / det_ok
         if lineType != 'line':
-            t[ok] = torch.sum(torch.multiply(edge2[ok, :], qvec), dim=-1) / det[ok]
+            t[ok] = torch.sum(torch.multiply(edge2.unsqueeze(0).expand(n_pts, -1, -1)[ok, :], qvec), dim=-1) / det_ok
         # test if line/plane intersection is within the triangle
         ok = torch.logical_and(ok, torch.logical_and(v >= - zero, u + v <= 1.0 + zero))
 
