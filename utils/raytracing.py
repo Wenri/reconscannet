@@ -153,25 +153,32 @@ class PreCalcMesh:
 
     def check_is_edge(self, pts):
         edges = self.edges
+        n_pts = pts.shape[0]
+        n_edges = edges.shape[0]
 
-        pts_vec = edges[:, 0] - pts
+        pts_vec = edges[:, 0].unsqueeze(0) - pts.unsqueeze(1)
 
-        proj_sign = pts_vec.unsqueeze(1).expand(-1, 2, -1)
-        proj_sign = torch.matmul(proj_sign.unsqueeze(2), self.edge_norms.unsqueeze(3)).squeeze(3).squeeze(2)
-        is_proj = torch.all(proj_sign > 0, dim=1)
+        proj_sign = torch.sum(torch.multiply(pts_vec.unsqueeze(2), self.edge_norms), dim=-1)
+        is_proj = torch.all(proj_sign > 0, dim=-1)
 
-        edges_vec = edges[is_proj, 0] - edges[is_proj, 1]
+        edges_vec = edges[:, 0] - edges[:, 1]
         edges_len = torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
         edges_vec /= edges_len
-        proj_len = torch.matmul(pts_vec[is_proj].unsqueeze(1), edges_vec.unsqueeze(2)).squeeze(2).squeeze(1)
-        is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len.squeeze(1))
+        proj_len = torch.sum(torch.multiply(pts_vec, edges_vec), dim=-1)
+        is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len.squeeze(-1))
 
-        face_adjacency = self.face_adjacency[is_proj]
-        face_adjacency_edges = self.face_adjacency_edges[is_proj]
-        self.mesh.visual.face_colors[face_adjacency[is_length, 0].numpy(), :3] = np.array((0, 0, 255))
-        self.mesh.visual.face_colors[face_adjacency[is_length, 1].numpy(), :3] = np.array((0, 255, 0))
+        is_ok = torch.logical_and(is_proj, is_length)
+        active_face = torch.any(is_ok, dim=0)
 
-        return torch.any(is_length).item() or self.check_is_extended(pts, face_adjacency_edges, proj_len)
+        self.mesh.visual.face_colors[self.face_adjacency[active_face, 0].numpy(), :3] = np.array((0, 0, 255))
+        self.mesh.visual.face_colors[self.face_adjacency[active_face, 1].numpy(), :3] = np.array((0, 255, 0))
+
+        pts_mask = torch.any(is_ok, dim=-1)
+
+        for i in torch.logical_not(pts_mask).nonzero(as_tuple=True)[0]:
+            pts_mask[i] = self.check_is_extended(pts[i], self.face_adjacency_edges[is_proj[i]], proj_len[i, is_proj[i]])
+
+        return pts_mask
 
     def check_is_extended(self, pts, edges, proj_len):
         if not len(edges):
@@ -211,8 +218,8 @@ def main(args):
     pts_split = torch.tensor_split(pts, 64)
     pts_mask = torch.cat([m.check_is_verified(p) for p in pts_split])
     pts_rev = torch.logical_not(pts_mask)
-    spts = pts[pts_rev]
-    pts_mask[pts_rev] = torch.from_numpy(np.fromiter(map(m.check_is_edge, spts), dtype=np.bool_, count=spts.shape[0]))
+    pts_split = torch.tensor_split(pts[pts_rev], 32)
+    pts_mask[pts_rev] = torch.cat([m.check_is_edge(p) for p in pts_split])
 
     print('Total Verified PTS:', torch.count_nonzero(pts_mask))
 
