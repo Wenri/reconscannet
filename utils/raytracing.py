@@ -210,10 +210,11 @@ def main(args):
     #     m.visual.face_colors[f, :3] = lut[(i + 1) % 256, 0]
 
     pts = create_grid_points_from_bounds(-0.55, .55, 32)
-    pts_list = np.fromiter((m.check_is_verified(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
-    edge_list = np.fromiter((m.check_is_edge(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
+    pts_mask = np.fromiter((m.check_is_verified(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
+    pts_rev = np.logical_not(pts_mask)
+    pts_sub = pts[pts_rev]
+    pts_mask[pts_rev] = np.fromiter((m.check_is_edge(p) for p in pts_sub), dtype=np.bool_, count=pts_sub.shape[0])
 
-    pts_mask = np.logical_or(edge_list, pts_list)
     print('Total Verified PTS:', np.count_nonzero(pts_mask))
 
     write_pointcloud(args.plyfile.with_suffix('.pc.ply'), pts[np.logical_not(pts_mask)])
