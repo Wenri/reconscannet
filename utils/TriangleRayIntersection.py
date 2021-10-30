@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
@@ -116,60 +117,61 @@ def TriangleRayIntersection(orig, dir, vert0, vert1, vert2):
     edge2 = vert2 - vert0
     tvec = orig - vert0
 
-    pvec = np.cross(dir, edge2)
+    pvec = torch.cross(dir, edge2)
 
-    det = np.sum(np.multiply(edge1, pvec), axis=-1)
+    det = torch.sum(torch.multiply(edge1, pvec), dim=-1)
 
     if 'two sided' == planeType:
-        angleOK = abs(det) > eps
+        angleOK = torch.abs(det) > eps
     else:
         if 'one sided' == planeType:
             angleOK = det > eps
         else:
             raise ValueError('Triangle parameter must be either "one sided" or "two sided"')
 
-    if not np.any(angleOK):
+    if not torch.any(angleOK):
         return angleOK
 
     # Different behavior depending on one or two sided triangles
-    det[np.logical_not(angleOK)] = np.nan
+    det[torch.logical_not(angleOK)] = np.nan
 
-    u = np.sum(np.multiply(tvec, pvec), axis=-1) / det
+    u = torch.sum(torch.multiply(tvec, pvec), dim=-1) / det
 
     if fullReturn:
         # calculate all variables for all line/triangle pairs
-        qvec = np.cross(tvec, edge1)
-        v = np.sum(np.multiply(dir, qvec), axis=-1) / det
-        t = np.sum(np.multiply(edge2, qvec), axis=-1) / det
+        qvec = torch.cross(tvec, edge1)
+        v = torch.sum(torch.multiply(dir, qvec), dim=-1) / det
+        t = torch.sum(torch.multiply(edge2, qvec), dim=-1) / det
         # test if line/plane intersection is within the triangle
-        ok = np.logical_and(angleOK, np.logical_and(np.logical_and(u >= - zero, v >= - zero), u + v <= 1.0 + zero))
+        ok = torch.logical_and(angleOK, torch.logical_and(
+            torch.logical_and(u >= - zero, v >= - zero), u + v <= 1.0 + zero))
     else:
         # limit some calculations only to line/triangle pairs where it makes
         # a difference. It is tempting to try to push this concept of
         # limiting the number of calculations to only the necessary to "u"
         # and "t" but that produces slower code
-        v = np.full_like(u, fill_value=np.nan)
-        t = np.full_like(u, fill_value=np.nan)
-        ok = np.logical_and(angleOK, np.logical_and(u >= - zero, u <= 1.0 + zero))
+        v = torch.full_like(u, fill_value=np.nan)
+        t = torch.full_like(u, fill_value=np.nan)
+        ok = torch.logical_and(angleOK, torch.logical_and(u >= - zero, u <= 1.0 + zero))
         # if all line/plane intersections are outside the triangle than no intersections
-        if not np.any(ok):
+        if not torch.any(ok):
             return ok
-        qvec = np.cross(tvec[ok, :], edge1[ok, :])
-        v[ok] = np.sum(np.multiply(dir[ok, :], qvec), axis=-1) / det[ok]
+        qvec = torch.cross(tvec[ok, :], edge1[ok, :])
+        v[ok] = torch.sum(torch.multiply(dir[ok, :], qvec), dim=-1) / det[ok]
         if lineType != 'line':
-            t[ok] = np.sum(np.multiply(edge2[ok, :], qvec), axis=-1) / det[ok]
+            t[ok] = torch.sum(torch.multiply(edge2[ok, :], qvec), dim=-1) / det[ok]
         # test if line/plane intersection is within the triangle
-        ok = np.logical_and(ok, np.logical_and(v >= - zero, u + v <= 1.0 + zero))
+        ok = torch.logical_and(ok, torch.logical_and(v >= - zero, u + v <= 1.0 + zero))
 
     # Test where along the line the line/plane intersection occurs
     if 'line' == lineType:
         intersect = ok
     else:
         if 'ray' == lineType:
-            intersect = np.logical_and(ok, t >= - zero)
+            intersect = torch.logical_and(ok, t >= - zero)
         else:
             if 'segment' == lineType:
-                intersect = np.logical_and(ok, np.logical_and(t >= - zero, t <= 1.0 + zero))
+                intersect = torch.logical_and(ok, torch.logical_and(t >= - zero, t <= 1.0 + zero))
             else:
                 raise ValueError('lineType parameter must be either "line", "ray" or "segment"')
 

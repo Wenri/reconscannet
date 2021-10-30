@@ -144,12 +144,13 @@ class PreCalcMesh:
         v = self.face_mask
         mesh = self.mesh
 
-        dir = -mesh.face_normals[v]
-        pts = np.broadcast_to(pts, shape=dir.shape)
+        normals = -torch.from_numpy(mesh.face_normals)[v]
+        pts = torch.broadcast_to(torch.from_numpy(pts), normals.shape)
+        triangles = torch.from_numpy(mesh.triangles)
 
-        in_trig = TriangleRayIntersection(pts, dir, mesh.triangles[v, 0], mesh.triangles[v, 1], mesh.triangles[v, 2])
+        in_trig = TriangleRayIntersection(pts, normals, triangles[v, 0], triangles[v, 1], triangles[v, 2])
         # mesh.visual.face_colors[in_trig, :3] = np.array((0, 255, 0))
-        return np.any(in_trig)
+        return torch.any(in_trig).item()
 
     def check_is_edge(self, pts):
         edges = self.edges
@@ -209,8 +210,8 @@ def main(args):
     #     m.visual.face_colors[f, :3] = lut[(i + 1) % 256, 0]
 
     pts = create_grid_points_from_bounds(-0.55, .55, 32)
-    edge_list = np.fromiter((m.check_is_edge(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
     pts_list = np.fromiter((m.check_is_verified(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
+    edge_list = np.fromiter((m.check_is_edge(p) for p in pts), dtype=np.bool_, count=pts.shape[0])
 
     pts_mask = np.logical_or(edge_list, pts_list)
     print('Total Verified PTS:', np.count_nonzero(pts_mask))
