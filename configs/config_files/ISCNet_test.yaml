@@ -11,7 +11,7 @@ device:
 data:
   dataset: scannet
   split: splits/fullscan
-  classes: sofa_cat
+  classes: table_cat
   num_point: 80000
   num_target: 256
   vote_factor: 1

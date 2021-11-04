@@ -23,30 +23,30 @@ def parse_args():
     parser = argparse.ArgumentParser('Instance Scene Completion.')
     parser.add_argument('--max_samples', type=int, default=60000, help='number of points')
     parser.add_argument('--plyfile', type=Path, help='optional reload model path', default=Path(
-        'data', 'label_1018', 'scan_64', '9_1be38f2624022098f71e06115e9c3b3e_output.ply'))
+        'data', 'label2', 'ref', '2_ad3e2d3cf9c03fb1c045ebb62fca20c6_output.ply'))
     return parser.parse_args()
 
 
 def get_labeled_face(mesh, device):
     face_colors = torch.from_numpy(mesh.visual.face_colors).to(device, dtype=torch.uint8)
     face_mask = torch.all(torch.logical_and(
-        face_colors >= torch.as_tensor((128, 0, 0, 0), dtype=face_colors.dtype, device=device),
-        face_colors <= torch.as_tensor((255, 128, 128, 255), dtype=face_colors.dtype, device=device)), dim=-1)
+        face_colors >= torch.as_tensor((180, 0, 0, 0), dtype=face_colors.dtype, device=device),
+        face_colors <= torch.as_tensor((255, 50, 50, 255), dtype=face_colors.dtype, device=device)), dim=-1)
 
     return face_mask
 
 
 class PreCalcMesh:
     def __init__(self, m, device):
-        assert m.is_watertight
+        m = m.split(only_watertight=True)[0]
         fix_normals(m)
         self.device = device
         self.mesh = m
         self.face_mask = get_labeled_face(m, device)
+        self.triangles_all = torch.from_numpy(m.triangles).to(device=self.device, dtype=torch.float)
         self.edges, self.edge_norms, selected_mask = self.extract_adj_faces()
         self.face_adjacency = torch.from_numpy(m.face_adjacency)[selected_mask]
         self.face_adjacency_edges = torch.from_numpy(m.face_adjacency_edges)[selected_mask]
-
         check_is_extended.vertices = np.asarray(m.vertices)
         check_is_extended.good_pts = self.extract_broken_pts()
 
@@ -86,14 +86,23 @@ class PreCalcMesh:
 
         return good_pts
 
+    def check_triangles_all(self, hit_pts, hit_norm):
+        triangles_all = self.triangles_all.unsqueeze(0).expand(hit_pts.shape[0], -1, -1, -1)
+        triangles = triangles_all[..., 0], triangles_all[..., 1], triangles_all[..., 2]
+        hit_norm = torch.broadcast_to(hit_norm.unsqueeze(1), triangles[0].shape)
+        in_hit, _ = TriangleRayIntersection(hit_pts, hit_norm, *triangles, lineType='segment', border='inclusive')
+        return torch.count_nonzero(in_hit, dim=-1)
+
     def check_is_verified(self, pts):
         v = self.face_mask
         mesh = self.mesh
 
         normals = torch.neg(torch.from_numpy(mesh.face_normals).to(device=self.device, dtype=torch.float)[v])
-        triangles = torch.from_numpy(mesh.triangles).to(device=self.device, dtype=torch.float)
+        triangles = self.triangles_all[v, 0], self.triangles_all[v, 1], self.triangles_all[v, 2]
 
-        in_trig = TriangleRayIntersection(pts, normals, triangles[v, 0], triangles[v, 1], triangles[v, 2])
+        in_trig, xcoor = TriangleRayIntersection(pts, normals, *triangles, fullReturn=True, returnXcoor=True)
+        hit_pts = torch.broadcast_to(pts.unsqueeze(1), xcoor.shape)[in_trig]
+        in_trig[in_trig.nonzero(as_tuple=True)] = self.check_triangles_all(hit_pts, xcoor[in_trig] - hit_pts) <= 1
         # mesh.visual.face_colors[in_trig, :3] = np.array((0, 255, 0))
         return torch.any(in_trig, dim=-1)
 
@@ -106,19 +115,21 @@ class PreCalcMesh:
         is_proj = torch.all(proj_sign > 0, dim=-1)
 
         edges_vec = edges[:, 0] - edges[:, 1]
-        edges_len = torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
-        edges_vec /= edges_len
+        edges_len = torch.linalg.vector_norm(edges_vec, dim=-1)
+        edges_vec /= edges_len.unsqueeze(-1)
         proj_len = torch.sum(torch.multiply(pts_vec, edges_vec), dim=-1)
-        is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len.squeeze(-1))
-
+        is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len)
+        xcoor = edges[:, 0] - proj_len.unsqueeze(-1) * edges_vec
         is_ok = torch.logical_and(is_proj, is_length)
+
+        hit_pts = torch.broadcast_to(pts.unsqueeze(1), xcoor.shape)[is_ok]
+        is_ok[is_ok.nonzero(as_tuple=True)] = self.check_triangles_all(hit_pts, xcoor[is_ok] - hit_pts) < 1
 
         # active_face = torch.any(is_ok, dim=0)
         # self.mesh.visual.face_colors[self.face_adjacency[active_face, 0].numpy(), :3] = np.array((0, 0, 255))
         # self.mesh.visual.face_colors[self.face_adjacency[active_face, 1].numpy(), :3] = np.array((0, 255, 0))
 
         pts_mask = torch.any(is_ok, dim=-1)
-
         pts_list = torch.logical_not(pts_mask).nonzero(as_tuple=True)[0].tolist()
 
         params = ((pts[i].cpu().numpy(),
@@ -138,10 +149,10 @@ def main(args):
     m = PreCalcMesh(trimesh.load(args.plyfile, force='mesh'), device=device)
 
     pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 64)).to(device=device, dtype=torch.float)
-    pts_split = torch.tensor_split(pts, 2)
+    pts_split = torch.tensor_split(pts, 32)
     pts_mask = torch.cat([m.check_is_verified(p) for p in pts_split])
     pts_rev = torch.logical_not(pts_mask)
-    pts_split = torch.tensor_split(pts[pts_rev], 2)
+    pts_split = torch.tensor_split(pts[pts_rev], 32)
     pts_mask[pts_rev] = torch.cat([m.check_is_edge(p) for p in pts_split])
 
     print('Total Verified PTS:', torch.count_nonzero(pts_mask).item())
