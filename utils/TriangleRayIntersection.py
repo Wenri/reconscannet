@@ -105,12 +105,11 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2, lineType='ray', 
     # Set up border parameter
     zero = {
         'normal': 0.0,
-        'inclusive': torch.finfo(torch.float32).eps,
-        'exclusive': -torch.finfo(torch.float32).eps
+        'inclusive': eps,
+        'exclusive': -eps
     }[border]
 
     # Find faces parallel to the ray
-    n_pts = orig.shape[0]
     edge1 = vert1 - vert0
     edge2 = vert2 - vert0
 
@@ -119,9 +118,9 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2, lineType='ray', 
     det = torch.sum(torch.multiply(edge1, pvec), dim=-1)
 
     if planeOneSided:
-        angleOK = det > torch.finfo(torch.float32).eps
+        angleOK = det >= torch.finfo(torch.float32).eps
     else:
-        angleOK = torch.abs(det) > torch.finfo(torch.float32).eps
+        angleOK = torch.abs(det) >= torch.finfo(torch.float32).eps
 
     if not torch.any(angleOK):
         return angleOK, None
@@ -139,7 +138,7 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2, lineType='ray', 
         t = torch.sum(torch.multiply(edge2, qvec), dim=-1) / det
         # test if line/plane intersection is within the triangle
         ok = torch.logical_and(angleOK, torch.logical_and(
-            torch.logical_and(u >= - zero, v >= - zero), u + v <= 1.0 + zero))
+            torch.logical_and(u >= -zero, v >= -zero), u + v <= 1.0 + zero))
     else:
         # limit some calculations only to line/triangle pairs where it makes
         # a difference. It is tempting to try to push this concept of
@@ -147,7 +146,7 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2, lineType='ray', 
         # and "t" but that produces slower code
         v = torch.full_like(u, fill_value=np.nan)
         t = torch.full_like(u, fill_value=np.nan)
-        ok = torch.logical_and(angleOK, torch.logical_and(u >= - zero, u <= 1.0 + zero))
+        ok = torch.logical_and(angleOK, torch.logical_and(u >= -zero, u <= 1.0 + zero))
         # if all line/plane intersections are outside the triangle than no intersections
         if not torch.any(ok):
             return ok, None
@@ -157,17 +156,17 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2, lineType='ray', 
         if lineType != 'line':
             t[ok] = torch.sum(torch.multiply(torch.broadcast_to(edge2, tvec.shape)[ok, :], qvec), dim=-1) / det_ok
         # test if line/plane intersection is within the triangle
-        ok = torch.logical_and(ok, torch.logical_and(v >= - zero, u + v <= 1.0 + zero))
+        ok = torch.logical_and(ok, torch.logical_and(v >= -zero, u + v <= 1.0 + zero))
 
     # Test where along the line the line/plane intersection occurs
     if 'line' == lineType:
         intersect = ok
     else:
         if 'ray' == lineType:
-            intersect = torch.logical_and(ok, t >= - eps)
+            intersect = torch.logical_and(ok, t >= -eps)
         else:
             if 'segment' == lineType:
-                intersect = torch.logical_and(ok, torch.logical_and(t >= - eps, t <= 1.0 + eps))
+                intersect = torch.logical_and(ok, torch.logical_and(t >= -eps, t <= 1.0 + eps))
             else:
                 raise ValueError('lineType parameter must be either "line", "ray" or "segment"')
 

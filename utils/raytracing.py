@@ -89,9 +89,9 @@ class PreCalcMesh:
 
     def check_triangles_all(self, hit_pts, hit_norm):
         triangles_all = self.triangles_all.unsqueeze(0).expand(hit_pts.shape[0], -1, -1, -1)
-        triangles = triangles_all[..., 0], triangles_all[..., 1], triangles_all[..., 2]
+        triangles = triangles_all[:, :, 0], triangles_all[:, :, 1], triangles_all[:, :, 2]
         hit_norm = torch.broadcast_to(hit_norm.unsqueeze(1), triangles[0].shape)
-        in_hit, _ = TriangleRayIntersection(hit_pts, hit_norm, *triangles, lineType='segment', border='inclusive',
+        in_hit, _ = TriangleRayIntersection(hit_pts, hit_norm, *triangles, lineType='segment', border='exclusive',
                                             planeOneSided=False)
         return torch.count_nonzero(in_hit, dim=-1)
 
