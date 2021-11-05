@@ -42,12 +42,14 @@ class PreCalcMesh:
         fix_normals(m)
         self.device = device
         self.mesh = m
+        self.triangles_all = torch.from_numpy(m.triangles).to(device=device, dtype=torch.float)
+        self.vertices_all = torch.from_numpy(m.vertices).to(device=device, dtype=torch.float)
         self.face_mask = get_labeled_face(m, device)
-        self.triangles_all = torch.from_numpy(m.triangles).to(device=self.device, dtype=torch.float)
         self.edges, self.edge_norms, selected_mask = self.extract_adj_faces()
-        self.face_adjacency = torch.from_numpy(m.face_adjacency)[selected_mask]
-        self.face_adjacency_edges = torch.from_numpy(m.face_adjacency_edges)[selected_mask]
+        self.face_adjacency = torch.from_numpy(m.face_adjacency).to(device=device)[selected_mask]
+        self.face_adjacency_edges = torch.from_numpy(m.face_adjacency_edges).to(device=device)[selected_mask]
         check_is_extended.vertices = np.asarray(m.vertices)
+        check_is_extended.triangles = np.asarray(m.triangles)
         check_is_extended.good_pts = self.extract_broken_pts()
 
         self.pool = Pool()
@@ -59,9 +61,8 @@ class PreCalcMesh:
         selected_mask = torch.all(self.face_mask[mesh.face_adjacency], dim=-1)
         selected_mask = torch.logical_and(torch.from_numpy(mesh.face_adjacency_convex).to(device=device), selected_mask)
 
-        vertices = torch.from_numpy(mesh.vertices).to(device=device, dtype=torch.float)
-        edges = vertices[torch.from_numpy(mesh.face_adjacency_edges).to(device=device)[selected_mask]]
-        unshared = vertices[torch.from_numpy(mesh.face_adjacency_unshared).to(device=device)[selected_mask]]
+        edges = self.vertices_all[torch.from_numpy(mesh.face_adjacency_edges).to(device=device)[selected_mask]]
+        unshared = self.vertices_all[torch.from_numpy(mesh.face_adjacency_unshared).to(device=device)[selected_mask]]
         face_adjacency = torch.from_numpy(mesh.face_adjacency).to(device=device)[selected_mask]
         pairs = torch.from_numpy(mesh.face_normals).to(device=device, dtype=torch.float)[face_adjacency]
 
@@ -90,7 +91,8 @@ class PreCalcMesh:
         triangles_all = self.triangles_all.unsqueeze(0).expand(hit_pts.shape[0], -1, -1, -1)
         triangles = triangles_all[..., 0], triangles_all[..., 1], triangles_all[..., 2]
         hit_norm = torch.broadcast_to(hit_norm.unsqueeze(1), triangles[0].shape)
-        in_hit, _ = TriangleRayIntersection(hit_pts, hit_norm, *triangles, lineType='segment', border='inclusive')
+        in_hit, _ = TriangleRayIntersection(hit_pts, hit_norm, *triangles, lineType='segment', border='inclusive',
+                                            planeOneSided=False)
         return torch.count_nonzero(in_hit, dim=-1)
 
     def check_is_verified(self, pts):
@@ -129,12 +131,20 @@ class PreCalcMesh:
         # self.mesh.visual.face_colors[self.face_adjacency[active_face, 0].numpy(), :3] = np.array((0, 0, 255))
         # self.mesh.visual.face_colors[self.face_adjacency[active_face, 1].numpy(), :3] = np.array((0, 255, 0))
 
+        return self.check_in_space(pts, is_ok, is_proj, proj_len)
+
+    def check_in_space(self, pts, is_ok, is_proj, proj_len, minibatch=8):
         pts_mask = torch.any(is_ok, dim=-1)
         pts_list = torch.logical_not(pts_mask).nonzero(as_tuple=True)[0].tolist()
 
-        params = ((pts[i].cpu().numpy(),
-                   self.face_adjacency_edges[is_proj[i]].numpy(),
-                   proj_len[i, is_proj[i]].cpu().numpy()) for i in pts_list)
+        candidate_pts = torch.where(proj_len < 0, self.face_adjacency_edges[:, 0], self.face_adjacency_edges[:, 1])
+        hit_pts = pts.unsqueeze(1).expand(-1, is_proj.shape[1], -1)[is_proj]
+        hit_norm = torch.tensor_split(self.vertices_all[candidate_pts[is_proj]] - hit_pts, minibatch)
+        hit_pts = torch.tensor_split(hit_pts, minibatch)
+        is_proj[is_proj.nonzero(as_tuple=True)] = torch.cat(
+            [self.check_triangles_all(*a) < 1 for a in zip(hit_pts, hit_norm)])
+
+        params = ((pts[i].cpu().numpy(), candidate_pts[i, is_proj[i]].cpu().numpy()) for i in pts_list)
 
         map_ret = self.pool.starmap(check_is_extended.check_is_extended, params)
         pts_mask[pts_list] = torch.as_tensor(map_ret, dtype=pts_mask.dtype, device=pts_mask.device)

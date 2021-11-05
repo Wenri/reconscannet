@@ -2,14 +2,12 @@ import numpy as np
 
 good_pts = {}
 vertices = np.empty(shape=())
+triangles = np.empty(shape=())
 
 
 def check_is_extended(*args, **kwargs):
-    pts, edges, proj_len = args
-    if not len(edges):
-        return False
+    pts, candidate_pts = args
 
-    candidate_pts = np.where(proj_len < 0, edges[:, 0], edges[:, 1])
     for idx in candidate_pts:
         tid = good_pts.get(idx)
         if tid is None:

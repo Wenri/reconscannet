@@ -2,8 +2,8 @@ import numpy as np
 import torch
 
 
-def TriangleRayIntersection(orig, normals, vert0, vert1, vert2,
-                            lineType='ray', border='normal', fullReturn=False, returnXcoor=False):
+def TriangleRayIntersection(orig, normals, vert0, vert1, vert2, lineType='ray', border='normal',
+                            planeOneSided=True, fullReturn=False, returnXcoor=False):
     """TRIANGLERAYINTERSECTION Ray/triangle intersection.
        INTERSECT = TriangleRayIntersection(ORIG, DIR, VERT1, VERT2, VERT3)
          calculates ray/triangle intersections using the algorithm proposed
@@ -101,13 +101,12 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2,
 
     # Read user preferences
     eps = 1e-05
-    planeType = 'one sided'
 
     # Set up border parameter
     zero = {
         'normal': 0.0,
-        'inclusive': np.finfo(float).eps,
-        'exclusive': -np.finfo(float).eps
+        'inclusive': torch.finfo(torch.float32).eps,
+        'exclusive': -torch.finfo(torch.float32).eps
     }[border]
 
     # Find faces parallel to the ray
@@ -119,13 +118,10 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2,
 
     det = torch.sum(torch.multiply(edge1, pvec), dim=-1)
 
-    if 'two sided' == planeType:
-        angleOK = torch.abs(det) > eps
+    if planeOneSided:
+        angleOK = det > torch.finfo(torch.float32).eps
     else:
-        if 'one sided' == planeType:
-            angleOK = det > eps
-        else:
-            raise ValueError('Triangle parameter must be either "one sided" or "two sided"')
+        angleOK = torch.abs(det) > torch.finfo(torch.float32).eps
 
     if not torch.any(angleOK):
         return angleOK, None
@@ -176,7 +172,6 @@ def TriangleRayIntersection(orig, normals, vert0, vert1, vert2,
                 raise ValueError('lineType parameter must be either "line", "ray" or "segment"')
 
     # calculate intersection coordinates if requested
-
     xcoor = vert0 + torch.multiply(edge1, u.unsqueeze(-1)) + \
             torch.multiply(edge2, v.unsqueeze(-1)) if returnXcoor else None
 
