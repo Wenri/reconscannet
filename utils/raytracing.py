@@ -8,13 +8,11 @@ from pathlib import Path
 import numpy as np
 import torch
 import trimesh
-from trimesh.constants import tol
-from trimesh.repair import fix_normals
 
-import check_is_extended
-from TriangleRayIntersection import TriangleRayIntersection
 from export_scannet_pts import write_pointcloud
 from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
+from . import check_is_extended
+from .TriangleRayIntersection import TriangleRayIntersection
 
 
 def parse_args():
@@ -23,28 +21,26 @@ def parse_args():
     parser = argparse.ArgumentParser('Instance Scene Completion.')
     parser.add_argument('--max_samples', type=int, default=60000, help='number of points')
     parser.add_argument('--plyfile', type=Path, help='optional reload model path', default=Path(
-        'data', 'label2', 'ref', '2_ad3e2d3cf9c03fb1c045ebb62fca20c6_output.ply'))
+        'data', 'label2', '2_ad3e2d3cf9c03fb1c045ebb62fca20c6_output.ply'))
     return parser.parse_args()
 
 
-def get_labeled_face(mesh, device):
+def get_labeled_face(mesh, device, color_low=(180, 0, 0, 0), color_high=(255, 50, 50, 255)):
     face_colors = torch.from_numpy(mesh.visual.face_colors).to(device, dtype=torch.uint8)
     face_mask = torch.all(torch.logical_and(
-        face_colors >= torch.as_tensor((180, 0, 0, 0), dtype=face_colors.dtype, device=device),
-        face_colors <= torch.as_tensor((255, 50, 50, 255), dtype=face_colors.dtype, device=device)), dim=-1)
+        face_colors >= torch.as_tensor(color_low, dtype=face_colors.dtype, device=device),
+        face_colors <= torch.as_tensor(color_high, dtype=face_colors.dtype, device=device)), dim=-1)
 
     return face_mask
 
 
 class PreCalcMesh:
-    def __init__(self, m, device):
-        m = m.split(only_watertight=True)[0]
-        fix_normals(m)
+    def __init__(self, m, device, pool=None, **kwargs):
         self.device = device
         self.mesh = m
         self.triangles_all = torch.from_numpy(m.triangles).to(device=device, dtype=torch.float)
         self.vertices_all = torch.from_numpy(m.vertices).to(device=device, dtype=torch.float)
-        self.face_mask = get_labeled_face(m, device)
+        self.face_mask = get_labeled_face(m, device, **kwargs)
         self.edges, self.edge_norms, selected_mask = self.extract_adj_faces()
         self.face_adjacency = torch.from_numpy(m.face_adjacency).to(device=device)[selected_mask]
         self.face_adjacency_edges = torch.from_numpy(m.face_adjacency_edges).to(device=device)[selected_mask]
@@ -52,7 +48,7 @@ class PreCalcMesh:
         check_is_extended.triangles = np.asarray(m.triangles)
         check_is_extended.good_pts = self.extract_broken_pts()
 
-        self.pool = Pool()
+        self.pool = pool if pool is not None else Pool()
 
     def extract_adj_faces(self):
         mesh = self.mesh
@@ -153,7 +149,7 @@ class PreCalcMesh:
 
 
 def main(args):
-    tol.facet_threshold = 5
+    # tol.facet_threshold = 5
     device = torch.device('cuda')
 
     m = PreCalcMesh(trimesh.load(args.plyfile, force='mesh'), device=device)
