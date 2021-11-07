@@ -148,6 +148,13 @@ class PreCalcMesh:
         return pts_mask
 
 
+class NearestMeshQuery:
+    def __init__(self, m, device, **kwargs):
+        self.device = device
+        self.mesh = m
+        self.face_mask = get_labeled_face(m, device, **kwargs)
+
+
 def main(args):
     # tol.facet_threshold = 5
     device = torch.device('cuda')

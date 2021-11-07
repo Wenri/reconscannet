@@ -10,14 +10,15 @@ import torch
 import trimesh
 from trimesh.repair import fix_normals
 
-from utils.raytracing import PreCalcMesh
+from external.libmesh import check_mesh_contains
+from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
+from utils.raytracing import PreCalcMesh, NearestMeshQuery
 
 COLOR_BOUND = namedtuple('COLOR_BOUND', ('color_low', 'color_high'))
 LabeledColor = namedtuple('LABELED_COLOR', ('Red', 'Black'))(
     Red=COLOR_BOUND((180, 0, 0, 0), (255, 50, 50, 255)),
     Black=COLOR_BOUND((0, 0, 0, 0), (50, 50, 50, 255))
 )
-
 
 
 class AnnotatedMesh:
@@ -28,7 +29,8 @@ class AnnotatedMesh:
             raise RuntimeError('load failed, maybe not watertight!')
         assert np.allclose(m_red.vertices, m_black.vertices)
         assert np.allclose(m_red.faces, m_black.faces)
-        self.redmesh = PreCalcMesh(m_red, device, **LabeledColor.Red._asdict(), **kwargs)
+        self.red_mesh = PreCalcMesh(m_red, device, **LabeledColor.Red._asdict(), **kwargs)
+        self.black_mesh = NearestMeshQuery(m_black, device, **LabeledColor.Black._asdict())
 
     def load_mesh(self, file_path):
         ml = [m for m in trimesh.load(file_path, process=False).split(only_watertight=False) if len(m.faces) > 10]
@@ -37,6 +39,10 @@ class AnnotatedMesh:
             return None
         fix_normals(ml)
         return ml
+
+    def query_pts(self, pts):
+        contains = check_mesh_contains(self.red_mesh.mesh, pts.cpu().numpy())
+        return False
 
 
 def main(args):
@@ -50,11 +56,15 @@ def main(args):
     red_files = set(os.fspath(a.relative_to(args.red_path)) for a in args.red_path.glob('scan_*/*_output.ply'))
     all_files = red_files.intersection(black_files)
 
+    pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 32)).to(device=device, dtype=torch.float)
+    pts_split = torch.tensor_split(pts, 32)
+
     err = 0
     consistency = 0
     for file in all_files:
         try:
             m = AnnotatedMesh(args, file, device, pool=pool)
+            pts_mask = torch.cat([m.query_pts(p) for p in pts_split])
         except RuntimeError as e:
             err += 1
         except AssertionError as e:
