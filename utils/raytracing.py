@@ -148,12 +148,15 @@ class PreCalcMesh:
 
         return pts_mask
 
+    def __bool__(self):
+        return bool(len(self.face_mask))
+
 
 class NearestMeshQuery:
     def __init__(self, m, device, **kwargs):
         self.device = device
         self.mesh = m
-        self.face_mask = get_labeled_face(m, device=torch.device('cpu'), **kwargs)
+        self.face_mask = get_labeled_face(m, device=torch.device('cpu'), **kwargs).numpy()
         self.kdt = KDTree(m.vertices)
         self.black_set = set(m.faces[self.face_mask].flat)
 
@@ -161,6 +164,9 @@ class NearestMeshQuery:
         dist, idx = self.kdt.query(pts.cpu().numpy(), workers=-1)
         isin = np.fromiter((i in self.black_set for i in idx), dtype=np.bool_, count=len(idx))
         return isin
+
+    def __bool__(self):
+        return bool(len(self.face_mask))
 
 
 def main(args):
