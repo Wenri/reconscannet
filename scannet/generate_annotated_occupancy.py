@@ -29,6 +29,7 @@ class AnnotatedMesh:
             raise RuntimeError('load failed, maybe not watertight!')
         assert np.allclose(m_red.vertices, m_black.vertices)
         assert np.allclose(m_red.faces, m_black.faces)
+        self.device = device
         self.red_mesh = PreCalcMesh(m_red, device, **LabeledColor.Red._asdict(), **kwargs)
         self.black_mesh = NearestMeshQuery(m_black, device, **LabeledColor.Black._asdict())
 
@@ -42,7 +43,20 @@ class AnnotatedMesh:
 
     def query_pts(self, pts):
         contains = check_mesh_contains(self.red_mesh.mesh, pts.cpu().numpy())
-        return False
+        contains_pos = torch.from_numpy(contains).to(device=self.device)
+        contains_ok = torch.from_numpy(contains).to(device=self.device)
+        contains_neg = torch.logical_not(contains_pos)
+        to_red_pts = pts[contains_neg]
+        to_black_pts = pts[contains_pos]
+        if len(to_red_pts):
+            to_red_mask = self.red_mesh.check_is_verified(to_red_pts)
+            to_red_rev = torch.logical_not(to_red_mask)
+            to_red_mask[to_red_rev] = self.red_mesh.check_is_edge(to_red_pts[to_red_rev])
+            contains_ok[contains_neg] = to_red_mask
+        if len(to_black_pts):
+            to_black_mask = torch.from_numpy(self.black_mesh.check_is_black(to_black_pts)).to(device=self.device)
+            contains_pos[contains] ^= to_black_mask
+        return torch.stack((contains_pos, contains_ok), dim=-1)
 
 
 def main(args):
@@ -56,7 +70,7 @@ def main(args):
     red_files = set(os.fspath(a.relative_to(args.red_path)) for a in args.red_path.glob('scan_*/*_output.ply'))
     all_files = red_files.intersection(black_files)
 
-    pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 32)).to(device=device, dtype=torch.float)
+    pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 64)).to(device=device, dtype=torch.float)
     pts_split = torch.tensor_split(pts, 32)
 
     err = 0
@@ -65,6 +79,7 @@ def main(args):
         try:
             m = AnnotatedMesh(args, file, device, pool=pool)
             pts_mask = torch.cat([m.query_pts(p) for p in pts_split])
+            print('OK')
         except RuntimeError as e:
             err += 1
         except AssertionError as e:

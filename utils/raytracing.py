@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import trimesh
+from scipy.spatial import cKDTree as KDTree
 
 from export_scannet_pts import write_pointcloud
 from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
@@ -99,7 +100,7 @@ class PreCalcMesh:
         triangles = self.triangles_all[v, 0], self.triangles_all[v, 1], self.triangles_all[v, 2]
 
         in_trig, xcoor = TriangleRayIntersection(pts, normals, *triangles, fullReturn=True, returnXcoor=True)
-        hit_pts = torch.broadcast_to(pts.unsqueeze(1), xcoor.shape)[in_trig]
+        hit_pts = torch.broadcast_to(pts.unsqueeze(1), tuple(in_trig.shape) + (3,))[in_trig]
         in_trig[in_trig.nonzero(as_tuple=True)] = self.check_triangles_all(hit_pts, xcoor[in_trig] - hit_pts) <= 1
         # mesh.visual.face_colors[in_trig, :3] = np.array((0, 255, 0))
         return torch.any(in_trig, dim=-1)
@@ -152,7 +153,14 @@ class NearestMeshQuery:
     def __init__(self, m, device, **kwargs):
         self.device = device
         self.mesh = m
-        self.face_mask = get_labeled_face(m, device, **kwargs)
+        self.face_mask = get_labeled_face(m, device=torch.device('cpu'), **kwargs)
+        self.kdt = KDTree(m.vertices)
+        self.black_set = set(m.faces[self.face_mask].flat)
+
+    def check_is_black(self, pts):
+        dist, idx = self.kdt.query(pts.cpu().numpy(), workers=-1)
+        isin = np.fromiter((i in self.black_set for i in idx), dtype=np.bool_, count=len(idx))
+        return isin
 
 
 def main(args):
