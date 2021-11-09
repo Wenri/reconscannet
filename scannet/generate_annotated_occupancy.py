@@ -10,6 +10,7 @@ import torch
 import trimesh
 from trimesh.repair import fix_normals
 
+from export_scannet_pts import write_pointcloud
 from external.libmesh import check_mesh_contains
 from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
 from utils.raytracing import PreCalcMesh, NearestMeshQuery
@@ -65,6 +66,7 @@ def main(args):
 
     args.red_path = args.data_dir / 'red'
     args.black_path = args.data_dir / 'black'
+    gen_path = args.data_dir / 'gen'
 
     black_files = set(os.fspath(a.relative_to(args.black_path)) for a in args.black_path.glob('scan_*/*_output.ply'))
     red_files = set(os.fspath(a.relative_to(args.red_path)) for a in args.red_path.glob('scan_*/*_output.ply'))
@@ -79,7 +81,14 @@ def main(args):
         try:
             m = AnnotatedMesh(args, file, device, pool=pool)
             pts_mask = torch.cat([m.query_pts(p) for p in pts_split])
-            print('OK')
+            inpts = pts[torch.all(pts_mask, dim=-1)]
+            outpts = pts[~pts_mask[:, 0] & pts_mask[:, 1]]
+            mesh_file = gen_path / file
+            mesh_file.parent.mkdir(exist_ok=True)
+            write_pointcloud(mesh_file.with_suffix('.in.ply'), inpts.cpu().numpy())
+            write_pointcloud(mesh_file.with_suffix('.out.ply'), outpts.cpu().numpy(),
+                             rgb_points=np.asarray((0, 0, 255), dtype=np.uint8))
+            print(file, ' OK')
         except RuntimeError as e:
             err += 1
         except AssertionError as e:
