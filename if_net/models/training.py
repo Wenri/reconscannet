@@ -85,7 +85,7 @@ class Trainer(object):
             invalid_id[idx] = dist[idx].item()
         return invalid_id, fixed_id
 
-    def train_step(self, batch):
+    def train_step(self, batch, **kwargs):
         self.model.train()
         self.optimizer.zero_grad()
 
@@ -101,7 +101,7 @@ class Trainer(object):
             partial=partial, valid_mask=valid_mask,
             p=batch.get('points').to(self.device),
             occ=batch.get('points.occ').to(self.device),
-            cls_codes=batch.get('category'))
+            cls_codes=batch.get('category'), **kwargs)
 
         loss.backward()
         self.optimizer.step()
@@ -139,7 +139,7 @@ class Trainer(object):
 
         return [(p + offset) / (overscan + 1) for p in partial]
 
-    def compute_loss(self, partial, valid_mask, p, occ, cls_codes=None):
+    def compute_loss(self, partial, valid_mask, p, occ, cls_codes=None, **kwargs):
         partial_input, p = self.overscan_aug(partial, p)
 
         voxel_grids = pointcloud2voxel_fast(partial_input)
