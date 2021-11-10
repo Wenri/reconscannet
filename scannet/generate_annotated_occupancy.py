@@ -1,5 +1,4 @@
 import argparse
-import csv
 import os
 import sys
 from collections import namedtuple
@@ -14,6 +13,7 @@ from trimesh.repair import fix_normals
 
 from export_scannet_pts import write_pointcloud
 from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds, implicit_waterproofing
+from scannet.mesh_csv_register import MeshRegister
 from utils.raytracing import PreCalcMesh, NearestMeshQuery
 
 COLOR_BOUND = namedtuple('COLOR_BOUND', ('color_low', 'color_high'))
@@ -21,10 +21,6 @@ LabeledColor = namedtuple('LABELED_COLOR', ('Red', 'Black'))(
     Red=COLOR_BOUND((180, 0, 0, 0), (255, 50, 50, 255)),
     Black=COLOR_BOUND((0, 0, 0, 0), (50, 50, 50, 255))
 )
-
-RegisterFieldsA = namedtuple('RegisterFieldsA', ('Bad', 'Good', 'Fine', 'Fail'))
-RegisterFieldsB = namedtuple('RegisterFieldsB', ('Good', 'Fail'))
-RegisterSummary = namedtuple('RegisterSummary', ('PerfectA', 'PerfectB', 'Trusted', 'Usable'), defaults=(False,) * 4)
 
 
 class AnnotatedMesh:
@@ -89,44 +85,6 @@ class AnnotatedMesh:
         return torch.stack((contains_pos, contains_ok), dim=-1)
 
 
-class MeshRegister:
-    CSV_TITLE_1 = ('标注方式1', '标注方式2')
-    CSV_TITLE_2 = ('很差（目测60%以上都要涂黑）：', '很好（轮廓完整，且无冗余，不需要涂黑）',
-                   '部分涂黑之后，可以达到“很好”', '重建失败（文件打开后没有点）',
-                   '很好（不需要涂红）', '重建失败（文件打开后没有点）')
-
-    def __init__(self, args):
-        filesA_len = len(RegisterFieldsA._fields)
-        registerA = {}
-        registerB = {}
-        header_seen = 0
-        with args.csv_file.open() as f:
-            for row in csv.reader(f):
-                if not header_seen:
-                    assert row[1] == self.CSV_TITLE_1[0] and row[filesA_len + 1] == self.CSV_TITLE_1[1]
-                    header_seen += 1
-                    continue
-                elif header_seen == 1:
-                    assert tuple(row[1:]) == self.CSV_TITLE_2
-                    header_seen += 1
-                    continue
-                scan_name = tuple(row[0].split('_')[:2]) if row[0] else None
-                assert scan_name not in registerA and scan_name not in registerB
-                registerA[scan_name] = RegisterFieldsA._make(bool(a.strip()) for a in row[1:filesA_len + 1])
-                registerB[scan_name] = RegisterFieldsB._make(bool(a.strip()) for a in row[filesA_len + 1:])
-
-        self.registerA = registerA
-        self.registerB = registerB
-
-    def check_scan(self, scan_name, instance_id):
-        scan_key = (scan_name.replace('_', ''), instance_id.split('_')[0])
-        a = self.registerA[scan_key]
-        b = self.registerB[scan_key]
-        if a.Bad or a.Fail or b.Fail or int(scan_key[0][4:]) < 705:
-            return RegisterSummary()
-        return RegisterSummary(Usable=True, PerfectA=a.Good, PerfectB=b.Good, Trusted=a.Good or a.Fine or b.Good)
-
-
 def main(args):
     device = torch.device('cuda')
     pool = Pool()
@@ -177,7 +135,7 @@ def main(args):
             print(colored('UnknownError: ', 'magenta'), e)
             unknown += 1
 
-    print(err, consistency, unknown, len(all_files))
+    print(f'{err=}, {consistency=}, {unknown=}, total={len(all_files)}')
     return os.EX_OK
 
 
@@ -187,9 +145,9 @@ def parse_args():
     parser = argparse.ArgumentParser('Instance Scene Completion.')
     parser.add_argument('--max_samples', type=int, default=60000, help='number of points')
     parser.add_argument('--data_dir', type=Path, help='optional reload model path', default=Path(
-        'data', 'anno1', 'sofa_ours'))
+        'data', 'anno1', 'chair'))
     parser.add_argument('--csv_file', type=Path, help='optional reload model path', default=Path(
-        'data', 'anno1', 'sofa_ours', 'sofa.csv'))
+        'data', 'anno1', 'chair', 'chair.csv'))
     return parser.parse_args()
 
 
