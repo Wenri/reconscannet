@@ -12,8 +12,7 @@ import trimesh
 from trimesh.repair import fix_normals
 
 from export_scannet_pts import write_pointcloud
-from external.libmesh import check_mesh_contains
-from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds
+from if_net.data_processing.implicit_waterproofing import create_grid_points_from_bounds, implicit_waterproofing
 from utils.raytracing import PreCalcMesh, NearestMeshQuery
 
 COLOR_BOUND = namedtuple('COLOR_BOUND', ('color_low', 'color_high'))
@@ -24,7 +23,7 @@ LabeledColor = namedtuple('LABELED_COLOR', ('Red', 'Black'))(
 
 RegisterFieldsA = namedtuple('RegisterFieldsA', ('Bad', 'Good', 'Fine', 'Fail'))
 RegisterFieldsB = namedtuple('RegisterFieldsB', ('Good', 'Fail'))
-RegisterSummary = namedtuple('RegisterSummary', ('Perfect', 'Trusted', 'Usable'), defaults=(False,) * 3)
+RegisterSummary = namedtuple('RegisterSummary', ('PerfectA', 'PerfectB', 'Trusted', 'Usable'), defaults=(False,) * 4)
 
 
 class AnnotatedMesh:
@@ -42,37 +41,48 @@ class AnnotatedMesh:
         self.black_mesh = black_mesh if black_mesh else None
         self.scan_info = scan_info
 
+        if not m_red.is_watertight or not m_black.is_watertight:
+            print('NW!', end='!')
+        if scan_info.PerfectA:
+            print('PerfectA', end=' ' if black_mesh else '+')
+        if scan_info.PerfectB and red_mesh:
+            print('PerfectB', end=' ' if red_mesh else '+')
+        if scan_info.Trusted:
+            print('Trusted', end=' ' if red_mesh else '!')
+
     def load_mesh(self, file_path):
         ml = [m for m in trimesh.load(file_path, process=False).split(only_watertight=False) if len(m.faces) > 10]
         ml = trimesh.util.concatenate(ml)
-        if not ml.fill_holes():
-            return None
-        fix_normals(ml)
+        if ml.fill_holes():
+            fix_normals(ml)
         return ml
 
     def query_pts(self, pts):
-        contains = check_mesh_contains(self.red_mesh.mesh, pts.cpu().numpy())
+        contains, holes_list = implicit_waterproofing(self.red_mesh.mesh, pts.cpu().numpy())
+        if np.any(holes_list):
+            print('holes_list: ', holes_list.nonzero())
         contains_pos = torch.from_numpy(contains).to(device=self.device)
         contains_ok = torch.from_numpy(contains).to(device=self.device)
         contains_neg = torch.logical_not(contains_pos)
         to_red_pts = pts[contains_neg]
         to_black_pts = pts[contains_pos]
         if len(to_red_pts):
-            if self.red_mesh is not None:
+            if self.scan_info.PerfectB or (self.red_mesh is None and self.scan_info.Trusted):
+                to_red_mask = torch.ones(to_red_pts.shape[0], dtype=torch.bool, device=self.device)
+            elif self.red_mesh is not None:
                 to_red_mask = self.red_mesh.check_is_verified(to_red_pts)
                 to_red_rev = torch.logical_not(to_red_mask)
                 to_red_mask[to_red_rev] = self.red_mesh.check_is_edge(to_red_pts[to_red_rev])
-            elif self.scan_info.Trusted:
-                to_red_mask = torch.ones(to_red_pts.shape[0], dtype=torch.bool, device=self.device)
             else:
                 raise ValueError('Untrusted mesh without Red Label!')
             contains_ok[contains_neg] = to_red_mask
-        if not self.scan_info.Perfect and len(to_black_pts):
+        if not self.scan_info.PerfectA and len(to_black_pts):
             if self.black_mesh is not None:
                 to_black_mask = torch.from_numpy(self.black_mesh.check_is_black(to_black_pts)).to(device=self.device)
             else:
                 raise ValueError('Imperfect mesh without Black Label!')
             contains_pos[contains] ^= to_black_mask
+
         return torch.stack((contains_pos, contains_ok), dim=-1)
 
 
@@ -111,7 +121,7 @@ class MeshRegister:
         b = self.registerB[scan_key]
         if a.Bad or a.Fail or b.Fail:
             return RegisterSummary()
-        return RegisterSummary(Usable=True, Perfect=a.Good, Trusted=a.Good or a.Fine or b.Good)
+        return RegisterSummary(Usable=True, PerfectA=a.Good, PerfectB=b.Good, Trusted=a.Good or a.Fine or b.Good)
 
 
 def main(args):

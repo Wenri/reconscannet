@@ -27,7 +27,7 @@ def to_rotation_matrix(euler_angles):
 
 
 def implicit_waterproofing(mesh_source, query_points):
-    occ_list, holes_list = check_mesh_contains(mesh_source, query_points)
+    occ_list, holes_list = check_mesh_contains(mesh_source, query_points, return_holes=True)
 
     for euler_angles in np.array([[0, np.pi / 2, 0], [np.pi / 2, 0, 0], [0, 0, np.pi / 2]]):
 
@@ -40,7 +40,7 @@ def implicit_waterproofing(mesh_source, query_points):
         r = np.pad(r, [(0, 1), (0, 1)], 'constant', constant_values=0)
         mesh.apply_transform(r)
         points = np.dot(r[:3, :3], query_points[holes_list].T).T
-        occ_list_rot, holes_list_rot = check_mesh_contains(mesh, points)
+        occ_list_rot, holes_list_rot = check_mesh_contains(mesh, points, return_holes=True)
 
         occ_list[holes_list] = occ_list_rot
         holes_list_updated = np.full(len(query_points), False)
