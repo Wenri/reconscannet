@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import trimesh
+from termcolor import colored
 from trimesh.repair import fix_normals
 
 from export_scannet_pts import write_pointcloud
@@ -37,6 +38,7 @@ class AnnotatedMesh:
         self.device = device
         red_mesh = PreCalcMesh(m_red, device, **LabeledColor.Red._asdict(), **kwargs)
         black_mesh = NearestMeshQuery(m_black, device, **LabeledColor.Black._asdict())
+        self.mesh = red_mesh.mesh
         self.red_mesh = red_mesh if red_mesh else None
         self.black_mesh = black_mesh if black_mesh else None
         self.scan_info = scan_info
@@ -59,7 +61,7 @@ class AnnotatedMesh:
         return ml
 
     def query_pts(self, pts):
-        contains, holes_list = implicit_waterproofing(self.red_mesh.mesh, pts.cpu().numpy())
+        contains, holes_list = implicit_waterproofing(self.mesh, pts.cpu().numpy())
         if np.any(holes_list):
             print('holes_list: ', holes_list.nonzero())
         contains_pos = torch.from_numpy(contains).to(device=self.device)
@@ -75,13 +77,13 @@ class AnnotatedMesh:
                 to_red_rev = torch.logical_not(to_red_mask)
                 to_red_mask[to_red_rev] = self.red_mesh.check_is_edge(to_red_pts[to_red_rev])
             else:
-                raise ValueError('Untrusted mesh without Red Label!')
+                raise RuntimeError('Untrusted mesh without Red Label!')
             contains_ok[contains_neg] = to_red_mask
         if not self.scan_info.PerfectA and len(to_black_pts):
             if self.black_mesh is not None:
                 to_black_mask = torch.from_numpy(self.black_mesh.check_is_black(to_black_pts)).to(device=self.device)
             else:
-                raise ValueError('Imperfect mesh without Black Label!')
+                raise RuntimeError('Imperfect mesh without Black Label!')
             contains_pos[contains] ^= to_black_mask
 
         return torch.stack((contains_pos, contains_ok), dim=-1)
@@ -120,7 +122,7 @@ class MeshRegister:
         scan_key = (scan_name.replace('_', ''), instance_id.split('_')[0])
         a = self.registerA[scan_key]
         b = self.registerB[scan_key]
-        if a.Bad or a.Fail or b.Fail:
+        if a.Bad or a.Fail or b.Fail:  # or int(scan_key[0][4:]) < 719:
             return RegisterSummary()
         return RegisterSummary(Usable=True, PerfectA=a.Good, PerfectB=b.Good, Trusted=a.Good or a.Fine or b.Good)
 
@@ -137,18 +139,22 @@ def main(args):
 
     black_files = set(os.fspath(a.relative_to(args.black_path)) for a in args.black_path.glob('scan_*/*_output.ply'))
     red_files = set(os.fspath(a.relative_to(args.red_path)) for a in args.red_path.glob('scan_*/*_output.ply'))
-    all_files = red_files.intersection(black_files)
+    all_files = list(red_files.intersection(black_files))
+    all_files.sort(key=lambda x: (int(os.path.dirname(x).split('_')[-1]), int(os.path.basename(x).split('_')[0])))
 
     pts = torch.from_numpy(create_grid_points_from_bounds(-0.55, .55, 64)).to(device=device, dtype=torch.float)
-    pts_split = torch.tensor_split(pts, 32)
+    pts_split = torch.tensor_split(pts, 64)
 
     err = 0
     consistency = 0
+    unknown = 0
     for file in all_files:
         try:
             scan_info = register.check_scan(os.path.dirname(file), os.path.basename(file))
             if not scan_info.Usable:
+                print(file, ' Unusable Skip')
                 continue
+            print(file, end=' ')
             m = AnnotatedMesh(args, file, scan_info, device, pool=pool)
             pts_mask = torch.cat([m.query_pts(p) for p in pts_split])
             inpts = pts[torch.all(pts_mask, dim=-1)]
@@ -158,13 +164,20 @@ def main(args):
             write_pointcloud(mesh_file.with_suffix('.in.ply'), inpts.cpu().numpy())
             write_pointcloud(mesh_file.with_suffix('.out.ply'), outpts.cpu().numpy(),
                              rgb_points=np.asarray((0, 0, 255), dtype=np.uint8))
-            print(file, ' OK')
+            np.savez(mesh_file.with_suffix('.npz'), pts=pts.cpu().numpy(),
+                     pts_mask=pts_mask.cpu().numpy())
+            print('OK')
         except RuntimeError as e:
+            print(colored('RuntimeError: ', 'magenta'), e)
             err += 1
         except AssertionError as e:
+            print(colored('AssertionError: ', 'magenta'), e)
             consistency += 1
+        except Exception as e:
+            print(colored('UnknownError: ', 'magenta'), e)
+            unknown += 1
 
-    print(err, consistency, len(all_files))
+    print(err, consistency, unknown, len(all_files))
     return os.EX_OK
 
 

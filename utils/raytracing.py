@@ -130,7 +130,7 @@ class PreCalcMesh:
 
         return self.check_in_space(pts, is_ok, is_proj, proj_len)
 
-    def check_in_space(self, pts, is_ok, is_proj, proj_len, minibatch=8):
+    def check_in_space(self, pts, is_ok, is_proj, proj_len, minibatch=16):
         pts_mask = torch.any(is_ok, dim=-1)
         pts_list = torch.logical_not(pts_mask).nonzero(as_tuple=True)[0].tolist()
 
@@ -149,7 +149,7 @@ class PreCalcMesh:
         return pts_mask
 
     def __bool__(self):
-        return bool(len(self.face_mask))
+        return torch.any(self.face_mask).item()
 
 
 class NearestMeshQuery:
@@ -166,7 +166,7 @@ class NearestMeshQuery:
         return isin
 
     def __bool__(self):
-        return bool(len(self.face_mask))
+        return np.any(self.face_mask).item()
 
 
 def main(args):
