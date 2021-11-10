@@ -51,7 +51,8 @@ class AnnotatedMesh:
             print('Trusted', end=' ' if red_mesh else '!')
 
     def load_mesh(self, file_path):
-        ml = [m for m in trimesh.load(file_path, process=False).split(only_watertight=False) if len(m.faces) > 10]
+        ml = [m for m in trimesh.load(file_path, force='mesh', process=False).split(only_watertight=False)
+              if len(m.faces) > 10]
         ml = trimesh.util.concatenate(ml)
         if ml.fill_holes():
             fix_normals(ml)
