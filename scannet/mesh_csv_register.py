@@ -1,4 +1,6 @@
 import csv
+import os
+import pathlib
 import re
 from collections import namedtuple
 
@@ -25,10 +27,12 @@ class MeshRegister:
         else:
             self.load_registerA(args.csv_file.with_suffix('.black.csv'))
             self.load_registerB(args.csv_file.with_suffix('.red.csv'))
+        self.start_from = args.start_from
 
     @classmethod
     def split_scan_name(cls, scan_name):
-        scan_name = scan_name.strip()
+        scan_name = pathlib.PureWindowsPath(scan_name.strip())
+        scan_name = os.path.join(scan_name.parent.name, scan_name.name)
         if scan_name:
             sp = [s for s in cls.SPLITTER.split(scan_name) if s.isnumeric()]
             return 'scan' + sp[0].strip(), sp[1].strip()
@@ -112,6 +116,6 @@ class MeshRegister:
         b = self.registerB.get(scan_key)
         if b is None:
             b = RegisterFieldsB(False, False)
-        if a.Bad or a.Fail or b.Fail:  # or int(scan_key[0][4:]) < 705:
+        if a.Bad or a.Fail or b.Fail or int(scan_key[0][4:]) < self.start_from:
             return RegisterSummary()
         return RegisterSummary(Usable=True, PerfectA=a.Good, PerfectB=b.Good, Trusted=a.Good or a.Fine or b.Good)
