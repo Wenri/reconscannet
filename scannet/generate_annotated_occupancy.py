@@ -122,7 +122,7 @@ class MeshRegister:
         scan_key = (scan_name.replace('_', ''), instance_id.split('_')[0])
         a = self.registerA[scan_key]
         b = self.registerB[scan_key]
-        if a.Bad or a.Fail or b.Fail:  # or int(scan_key[0][4:]) < 719:
+        if a.Bad or a.Fail or b.Fail or int(scan_key[0][4:]) < 705:
             return RegisterSummary()
         return RegisterSummary(Usable=True, PerfectA=a.Good, PerfectB=b.Good, Trusted=a.Good or a.Fine or b.Good)
 
@@ -187,9 +187,9 @@ def parse_args():
     parser = argparse.ArgumentParser('Instance Scene Completion.')
     parser.add_argument('--max_samples', type=int, default=60000, help='number of points')
     parser.add_argument('--data_dir', type=Path, help='optional reload model path', default=Path(
-        'data', 'anno1', 'table_ours'))
+        'data', 'anno1', 'sofa_ours'))
     parser.add_argument('--csv_file', type=Path, help='optional reload model path', default=Path(
-        'data', 'anno1', 'table_ours', 'table.csv'))
+        'data', 'anno1', 'sofa_ours', 'sofa.csv'))
     return parser.parse_args()
 
 
