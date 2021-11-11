@@ -1,9 +1,9 @@
 method: ISCNet
 seed: 10
-weight: out/chair_cls/model_255_0.4856.pt
+weight: out/abnormal_cls/model.pt
 device:
   use_gpu: True
-  gpu_ids: '0'
+  gpu_ids: '1'
   num_workers: 0
 data:
   dataset: scannet

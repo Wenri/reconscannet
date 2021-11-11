@@ -3,7 +3,7 @@ data:
   dataset: Shapes3D
   path: data/ShapeNet
   abnormal: data/anno1
-  classes: sofa_cat
+  classes: null
   train_split: train
   val_split: val
   test_split: test
@@ -17,7 +17,7 @@ data:
   pointcloud_n: 2688
   pointcloud_target_n: 1024
   pointcloud_noise: 0.02
-  aug_ratio: 0.3
+  aug_ratio: 0
   with_transforms: false
   use_cls_for_completion: true
   skip_propagate: True

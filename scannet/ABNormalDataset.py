@@ -4,6 +4,9 @@ import numpy as np
 import trimesh
 from torch.utils import data
 
+from if_net.models.data.core import list_categories
+from scannet.scannet_utils import ShapeNetCat
+
 
 class ABNormalDataset(data.Dataset):
     """ 3D Occupancy ABNormal dataset class.
@@ -16,6 +19,18 @@ class ABNormalDataset(data.Dataset):
         self.rand = np.random.default_rng()
         self.N = cfg['data']['pointcloud_n']
         self.OCCN = cfg['data']['points_subsample']
+        categories = {c: idx for idx, c in enumerate(list_categories(cfg['data']['path']))}
+        self.catmap = {}
+        for key, catids in vars(ShapeNetCat).items():
+            if key[-4:] != '_cat':
+                continue
+            c = None
+            for i in catids:
+                c0 = categories.get(i)
+                if c0 is not None:
+                    assert c is None
+                    c = c0
+            self.catmap[key[:-4]] = c
 
     def __len__(self):
         """ Returns the length of the dataset.
@@ -42,6 +57,14 @@ class ABNormalDataset(data.Dataset):
         # assert np.allclose(pc_red.vertices, pc_black.vertices)
         return self.subsample(np.asarray(pc_red.vertices, dtype=np.float32), self.N)
 
+    def get_cls(self, idx):
+        npz_name = self.npz_files[idx]
+        scan_dir = npz_name.parent
+        gen_dir = scan_dir.parent
+        cls_dir = gen_dir.parent
+        cls_name = cls_dir.name.split('_')[0]
+        return self.catmap[cls_name]
+
     def __getitem__(self, idx):
         npz_file = np.load(self.npz_files[idx])
         pts = npz_file['pts']
@@ -60,6 +83,7 @@ class ABNormalDataset(data.Dataset):
         ret = {
             'pts': pts[indices],
             'pts_mask': pts_mask[indices],
-            'partial_pc': self.load_partial(idx)
+            'partial_pc': self.load_partial(idx),
+            'cls': self.get_cls(idx)
         }
         return ret

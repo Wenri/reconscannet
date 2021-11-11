@@ -93,7 +93,7 @@ def main(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=batch_size, num_workers=16, shuffle=True, prefetch_factor=2,
-        collate_fn=collate_remove_none, worker_init_fn=worker_init_fn)
+        collate_fn=collate_remove_none, worker_init_fn=worker_init_fn, drop_last=True)
 
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=4, num_workers=4, shuffle=False,

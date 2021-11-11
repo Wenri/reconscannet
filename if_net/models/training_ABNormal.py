@@ -25,4 +25,5 @@ class TrainerABNormal(Trainer):
         partial[replace_id] = ab_partial
         p[replace_id] = ab_pts
         occ[replace_id] = ab_occ
+        cls_codes[replace_id] = abnormal['cls']
         return super(TrainerABNormal, self).compute_loss(partial, valid_mask, p, occ, cls_codes=cls_codes, **kwargs)
