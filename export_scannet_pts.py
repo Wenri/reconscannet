@@ -180,10 +180,10 @@ def run(opt, cfg):
                             collate_fn=collate_fn,
                             worker_init_fn=my_worker_init_fn)
     path_config = PathConfig('scannet')
-    # cat_set = cfg.config['data']['classes']
-    # cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
-    cat_set = None
-    f = open('/tmp/maptab.txt', 'w')
+    cat_set = cfg.config['data']['classes']
+    cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
+
+    # f = open('/tmp/maptab.txt', 'w')
     for cur_iter, data in enumerate(dataloader):
         # if cur_iter <= 931:
         #     continue
@@ -197,7 +197,7 @@ def run(opt, cfg):
         scan_idx = c.scan_idx.item()
 
         out_scan_dir = opt.output_dir / f'scan_{scan_idx}'
-        # print(f'scan_{scan_idx}')
+        print(f'scan_{scan_idx}')
 
         instance_indices = [idx for idx in c.box_label_mask.nonzero(as_tuple=True)[0]
                             if cat_set is None or c.shapenet_catids[idx] in cat_set]
@@ -205,16 +205,16 @@ def run(opt, cfg):
         if not instance_indices:
             continue
 
-        # scan_mesh = get_scannet_mesh(path_config, scene_name=dataset.split[scan_idx]['scan'].parent.name)
-        # scan_old_vert = torch.from_numpy(scan_mesh.vertices).float().cuda()
+        scan_mesh = get_scannet_mesh(path_config, scene_name=dataset.split[scan_idx]['scan'].parent.name)
+        scan_old_vert = torch.from_numpy(scan_mesh.vertices).float().cuda()
         scene_name = dataset.split[scan_idx]['scan']
 
         for idx in instance_indices:
             ins_id = int(c.object_instance_labels[idx])
-            print(f'scan{scan_idx}_{idx}_{c.shapenet_ids[idx][:8]}:{scene_name.parent.name}_insid_{ins_id}', end='_',
-                  file=f)
-            print('center:',c.box_centers[idx].tolist(), file=f)
-            continue
+            # print(f'scan{scan_idx}_{idx}_{c.shapenet_ids[idx][:8]}:{scene_name.parent.name}_insid_{ins_id}', end='_',
+            #       file=f)
+            # print('center:',c.box_centers[idx].tolist(), file=f)
+            # continue
             out_scan_dir.mkdir(exist_ok=True)
 
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()

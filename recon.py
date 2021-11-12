@@ -30,7 +30,7 @@ def run(opt, cfg):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     categories = {c: idx for idx, c in enumerate(list_categories(cfg.config['data']['path']))}
 
-    dataset = ISCNet_ScanNet(cfg, mode='test', split='test')
+    dataset = ISCNet_ScanNet(cfg, mode='test', split='train')
     dataloader = DataLoader(dataset=dataset,
                             num_workers=cfg.config['device']['num_workers'],
                             batch_size=1,
@@ -59,8 +59,8 @@ def run(opt, cfg):
                             padding=0)
 
     for cur_iter, data in enumerate(dataloader):
-        # if cur_iter <= 60:
-        #     continue
+        if cur_iter <= 200:
+            continue
 
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})

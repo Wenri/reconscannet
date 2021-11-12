@@ -1,6 +1,6 @@
 method: ISCNet
 seed: 10
-weight: out/abnormal_cls/model.pt
+weight: out/abnormal_cls/model_247_0.5117.pt
 device:
   use_gpu: True
   gpu_ids: '1'

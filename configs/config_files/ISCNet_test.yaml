@@ -6,12 +6,12 @@ weight: ['out/iscnet/2021-07-02T07:00:24.481384/model_last.pth']
 seed: 10
 device:
   use_gpu: True
-  gpu_ids: '0'
+  gpu_ids: '1'
   num_workers: 0
 data:
   dataset: scannet
   split: splits/fullscan
-  classes: table_cat
+  classes: chair_cat
   num_point: 80000
   num_target: 256
   vote_factor: 1

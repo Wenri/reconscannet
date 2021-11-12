@@ -142,8 +142,8 @@ def main(args):
     nparameters = sum(p.numel() for p in model.parameters())
     print(model)
     print('Total number of parameters: %d' % nparameters)
-
     print('Total dataset length: %d, valid length: %d' % (len(train_dataset), len(train_dataset._valid_map)))
+    print('Total ABNormal dataset length: %d' % len(abnormal_dataset))
 
     # trainer.set_lr(1e-4)
     while True:
