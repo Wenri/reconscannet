@@ -59,8 +59,6 @@ def run(opt, cfg):
                             padding=0)
 
     for cur_iter, data in enumerate(dataloader):
-        if cur_iter <= 200:
-            continue
 
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})

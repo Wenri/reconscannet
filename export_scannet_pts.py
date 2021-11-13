@@ -185,8 +185,8 @@ def run(opt, cfg):
 
     # f = open('/tmp/maptab.txt', 'w')
     for cur_iter, data in enumerate(dataloader):
-        # if cur_iter <= 931:
-        #     continue
+        if cur_iter <= 931:
+            continue
 
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
