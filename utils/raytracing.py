@@ -64,7 +64,7 @@ class PreCalcMesh:
         pairs = torch.from_numpy(mesh.face_normals).to(device=device, dtype=torch.float)[face_adjacency]
 
         edges_vec = edges[:, 0] - edges[:, 1]
-        edges_vec /= torch.linalg.vector_norm(edges_vec, dim=-1, keepdim=True)
+        edges_vec /= torch.linalg.norm(edges_vec, dim=-1, keepdim=True)
         new_norms = torch.cross(pairs, edges_vec.unsqueeze(1).expand(-1, 2, -1))
 
         test_sign = unshared - edges[:, 0].unsqueeze(1)
@@ -114,7 +114,7 @@ class PreCalcMesh:
         is_proj = torch.all(proj_sign > 0, dim=-1)
 
         edges_vec = edges[:, 0] - edges[:, 1]
-        edges_len = torch.linalg.vector_norm(edges_vec, dim=-1)
+        edges_len = torch.linalg.norm(edges_vec, dim=-1)
         edges_vec /= edges_len.unsqueeze(-1)
         proj_len = torch.sum(torch.multiply(pts_vec, edges_vec), dim=-1)
         is_length = torch.logical_and(proj_len >= 0, proj_len <= edges_len)
