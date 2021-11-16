@@ -37,9 +37,13 @@ def evaluate(trainer, val_loader):
     return metric_val
 
 
-def infinite_iter(src_iter):
-    while True:
-        yield from src_iter
+def get_from_infinite_iter(src_iter, abnormal_loader):
+    try:
+        return next(src_iter), src_iter
+    except StopIteration:
+        print('abnormal_loader used up. refreshing...', file=sys.stderr)
+        src_iter = iter(abnormal_loader)
+        return next(src_iter), src_iter
 
 
 def train_one_epoch(train_loader, abnormal_loader, trainer, epoch_it, print_every):
@@ -47,10 +51,11 @@ def train_one_epoch(train_loader, abnormal_loader, trainer, epoch_it, print_ever
     total_aug = 0
     fix_number = 0
     inv_stat = []
-    abnormal_iter = iter(infinite_iter(abnormal_loader))
+    abnormal_iter = iter(abnormal_loader)
 
     for it, batch in enumerate(train_loader):
-        loss, aug, fixed_id, invalid_id = trainer.train_step(batch, abnormal=next(abnormal_iter))
+        abnormal_batch, abnormal_iter = get_from_infinite_iter(abnormal_iter, abnormal_loader)
+        loss, aug, fixed_id, invalid_id = trainer.train_step(batch, abnormal=abnormal_batch)
         fix_number += len(fixed_id)
         inv_stat.extend(invalid_id.values())
         total_aug += aug
@@ -100,7 +105,7 @@ def main(args):
         collate_fn=collate_remove_none, worker_init_fn=worker_init_fn)
 
     abnormal_loader = torch.utils.data.DataLoader(
-        abnormal_dataset, batch_size=batch_size // 4, num_workers=4, shuffle=True, prefetch_factor=2,
+        abnormal_dataset, batch_size=batch_size // 4, num_workers=0, shuffle=True,
         collate_fn=collate_remove_none, worker_init_fn=worker_init_fn, drop_last=True)
 
     data_vis = next(iter(abnormal_loader))
@@ -174,7 +179,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Train a 3D reconstruction model.'
     )
-    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'if_net_abnormal.yaml',
+    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'if_net_abnormal2.yaml',
                         help='Path to config file.')
     parser.add_argument('--no-cuda', action='store_true', help='Do not use cuda.')
     parser.add_argument('--exit-after', type=int, default=-1,

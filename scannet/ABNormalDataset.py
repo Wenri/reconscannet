@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -66,24 +67,29 @@ class ABNormalDataset(data.Dataset):
         return self.catmap[cls_name]
 
     def __getitem__(self, idx):
-        npz_file = np.load(self.npz_files[idx])
-        pts = npz_file['pts']
-        pts_mask = npz_file['pts_mask']
-        inpts = pts[np.all(pts_mask, axis=-1)]
-        outpts = pts[~pts_mask[:, 0] & pts_mask[:, 1]]
+        while True:
+            try:
+                npz_file = np.load(self.npz_files[idx])
+                pts = npz_file['pts']
+                pts_mask = npz_file['pts_mask']
+                inpts = pts[np.all(pts_mask, axis=-1)]
+                outpts = pts[~pts_mask[:, 0] & pts_mask[:, 1]]
 
-        n_in = self.OCCN // 2
-        inpts = self.subsample(inpts, n_in)
-        outpts = self.subsample(outpts, self.OCCN - n_in)
-        indices = self.rand.permutation(self.OCCN)
-        pts = np.concatenate((inpts, outpts), axis=0)
-        pts_mask = np.zeros(self.OCCN, dtype=np.bool_)
-        pts_mask[:n_in] = True
+                n_in = self.OCCN // 2
+                inpts = self.subsample(inpts, n_in)
+                outpts = self.subsample(outpts, self.OCCN - n_in)
+                indices = self.rand.permutation(self.OCCN)
+                pts = np.concatenate((inpts, outpts), axis=0)
+                pts_mask = np.zeros(self.OCCN, dtype=np.bool_)
+                pts_mask[:n_in] = True
 
-        ret = {
-            'pts': pts[indices],
-            'pts_mask': pts_mask[indices],
-            'partial_pc': self.load_partial(idx),
-            'cls': self.get_cls(idx)
-        }
-        return ret
+                ret = {
+                    'pts': pts[indices],
+                    'pts_mask': pts_mask[indices],
+                    'partial_pc': self.load_partial(idx),
+                    'cls': self.get_cls(idx)
+                }
+                return ret
+            except Exception as e:
+                print('Error while loading data: ', e, file=sys.stderr)
+                idx = (idx + 1) % len(self.npz_files)

@@ -19,8 +19,8 @@ from utils.raytracing import PreCalcMesh, NearestMeshQuery
 
 COLOR_BOUND = namedtuple('COLOR_BOUND', ('color_low', 'color_high'))
 LabeledColor = namedtuple('LABELED_COLOR', ('Red', 'Black'))(
-    Red=COLOR_BOUND((180, 0, 0, 0), (255, 50, 50, 255)),
-    Black=COLOR_BOUND((0, 0, 0, 0), (50, 50, 50, 255))
+    Red=COLOR_BOUND((150, 0, 0, 0), (255, 150, 150, 255)),
+    Black=COLOR_BOUND((0, 0, 0, 0), (100, 100, 100, 255))
 )
 
 
