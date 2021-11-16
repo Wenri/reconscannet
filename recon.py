@@ -42,6 +42,7 @@ def run(opt, cfg):
     checkpoint_io = CheckpointIO(os.fspath(weight_file.parent), model=network)
     cat_set = cfg.config['data']['classes']
     cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
+    cat_set = ShapeNetCat.cabinet_cat | ShapeNetCat.table_cat | ShapeNetCat.chair_cat
 
     try:
         checkpoint_io.load(weight_file.name)
@@ -59,6 +60,8 @@ def run(opt, cfg):
                             padding=0)
 
     for cur_iter, data in enumerate(dataloader):
+        if cur_iter <= 86:
+            continue
 
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
