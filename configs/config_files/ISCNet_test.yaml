@@ -6,7 +6,7 @@ weight: ['out/iscnet/2021-07-02T07:00:24.481384/model_last.pth']
 seed: 10
 device:
   use_gpu: True
-  gpu_ids: '1'
+  gpu_ids: '0'
   num_workers: 0
 data:
   dataset: scannet
