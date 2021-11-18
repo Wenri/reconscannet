@@ -24,9 +24,14 @@ class MeshRegister:
         self.registerB = {}
         if args.csv_file.exists():
             self.load_registerAB(args.csv_file)
-        else:
-            self.load_registerA(args.csv_file.with_suffix('.black.csv'))
-            self.load_registerB(args.csv_file.with_suffix('.red.csv'))
+
+        csv_black = args.csv_file.with_suffix('.black.csv')
+        if csv_black.exists():
+            self.load_registerA(csv_black)
+
+        csv_red = args.csv_file.with_suffix('.red.csv')
+        if csv_red.exists():
+            self.load_registerB(csv_red)
         self.start_from = args.start_from
 
     @classmethod

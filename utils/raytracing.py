@@ -51,6 +51,9 @@ class PreCalcMesh:
 
         self.pool = pool if pool is not None else Pool()
 
+    def get_labeled_area(self):
+        return np.sum(self.mesh.area_faces[self.face_mask.cpu().numpy()])
+
     def extract_adj_faces(self):
         mesh = self.mesh
         device = self.device
@@ -159,6 +162,9 @@ class NearestMeshQuery:
         self.face_mask = get_labeled_face(m, device=torch.device('cpu'), **kwargs).numpy()
         self.kdt = KDTree(m.vertices)
         self.black_set = set(m.faces[self.face_mask].flat)
+
+    def get_labeled_area(self):
+        return np.sum(self.mesh.area_faces[self.face_mask])
 
     def check_is_black(self, pts):
         dist, idx = self.kdt.query(pts.cpu().numpy(), workers=-1)

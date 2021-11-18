@@ -172,7 +172,7 @@ def get_scannet_mesh(path_config, scene_name):
 
 
 def run(opt, cfg):
-    dataset = ISCNet_ScanNet(cfg, mode='test', split='train')
+    dataset = ISCNet_ScanNet(cfg, mode='test', split='test')
     dataloader = DataLoader(dataset=dataset,
                             num_workers=cfg.config['device']['num_workers'],
                             batch_size=1,
@@ -182,11 +182,12 @@ def run(opt, cfg):
     path_config = PathConfig('scannet')
     cat_set = cfg.config['data']['classes']
     cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
+    cat_set = ShapeNetCat.cabinet_cat | ShapeNetCat.table_cat | ShapeNetCat.chair_cat
 
     # f = open('/tmp/maptab.txt', 'w')
     for cur_iter, data in enumerate(dataloader):
-        if cur_iter <= 931:
-            continue
+        # if cur_iter <= 931:
+        #     continue
 
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
