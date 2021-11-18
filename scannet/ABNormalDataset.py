@@ -66,6 +66,14 @@ class ABNormalDataset(data.Dataset):
         cls_name = cls_dir.name.split('_')[0]
         return self.catmap[cls_name]
 
+    def load_by_id(self, scan_id, idx):
+        for i, file in enumerate(self.npz_files):
+            if f"scan_{scan_id}" != file.parent.name:
+                continue
+            if file.name.split('_')[0] != idx:
+                continue
+            return np.load(file), self.get_cls(i)
+
     def __getitem__(self, idx):
         while True:
             try:
