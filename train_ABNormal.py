@@ -97,15 +97,15 @@ def main(args):
     abnormal_dataset = ABNormalDataset('train', cfg)
 
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size, num_workers=16, shuffle=True, prefetch_factor=2,
+        train_dataset, batch_size=batch_size, num_workers=16, shuffle=True, prefetch_factor=2, persistent_workers=True,
         collate_fn=collate_remove_none, worker_init_fn=worker_init_fn, drop_last=True)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=4, num_workers=4, shuffle=False,
+        val_dataset, batch_size=4, num_workers=0, shuffle=False,
         collate_fn=collate_remove_none, worker_init_fn=worker_init_fn)
 
     abnormal_loader = torch.utils.data.DataLoader(
-        abnormal_dataset, batch_size=batch_size // 4, num_workers=0, shuffle=True,
+        abnormal_dataset, batch_size=batch_size // 4, num_workers=4, shuffle=True, persistent_workers=True,
         collate_fn=collate_remove_none, worker_init_fn=worker_init_fn, drop_last=True)
 
     data_vis = next(iter(abnormal_loader))
@@ -179,7 +179,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Train a 3D reconstruction model.'
     )
-    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'if_net_abnormal2.yaml',
+    parser.add_argument('--config', type=Path, default=base_dir / 'configs' / 'config_files' / 'if_net_abnormal.yaml',
                         help='Path to config file.')
     parser.add_argument('--no-cuda', action='store_true', help='Do not use cuda.')
     parser.add_argument('--exit-after', type=int, default=-1,
