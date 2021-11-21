@@ -6,7 +6,7 @@ from .core import Shapes3dDataset
 from .fields import IndexField, PointsField, CategoryField, VoxelsField, \
     PartialPointCloudField, PointCloudField
 from .transforms import PointcloudNoise, SubsamplePoints, SubselectPointcloud
-from ..if_net import IFNet
+from ..occupancy_net import ONet
 
 
 def get_model(cfg, device=None, dataset=None, **kwargs):
@@ -27,7 +27,7 @@ def get_model(cfg, device=None, dataset=None, **kwargs):
     encoder_kwargs = cfg['model']['encoder_kwargs']
     encoder_latent_kwargs = cfg['model']['encoder_latent_kwargs']
 
-    model = IFNet(cfg)
+    model = ONet(cfg)
 
     return model
 

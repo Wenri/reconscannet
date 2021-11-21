@@ -2,7 +2,7 @@ method: onet
 data:
   dataset: Shapes3D
   path: data/ShapeNet
-  classes: table_cat
+  classes: null
   train_split: train
   val_split: val
   test_split: test
@@ -33,7 +33,7 @@ model:
   dmc_weight_prior: 10.
 training:
   out_dir:  out/strix
-  batch_size: 32
+  batch_size: 50
   print_every: 10
   visualize_every: 2000
   validate_every: 2000
