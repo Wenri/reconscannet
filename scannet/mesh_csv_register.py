@@ -25,13 +25,11 @@ class MeshRegister:
         if args.csv_file.exists():
             self.load_registerAB(args.csv_file)
 
-        csv_black = args.csv_file.with_suffix('.black.csv')
-        if csv_black.exists():
-            self.load_registerA(csv_black)
+        self.load_registerA(args.csv_file.with_suffix('.black.csv'))
+        self.load_registerA(args.csv_file.with_suffix('.black.2.csv'))
+        self.load_registerB(args.csv_file.with_suffix('.red.csv'))
+        self.load_registerB(args.csv_file.with_suffix('.red.2.csv'))
 
-        csv_red = args.csv_file.with_suffix('.red.csv')
-        if csv_red.exists():
-            self.load_registerB(csv_red)
         self.start_from = args.start_from
 
     @classmethod
@@ -61,6 +59,9 @@ class MeshRegister:
         self.registerB[scan_name] = RegisterFieldsB(*scan_info)
 
     def load_registerA(self, file_name):
+        if not file_name.exists():
+            return
+
         header_seen = 0
 
         with file_name.open() as f:
@@ -78,6 +79,9 @@ class MeshRegister:
                     self.set_to_registerA(scan_name, i)
 
     def load_registerB(self, file_name):
+        if not file_name.exists():
+            return
+
         header_seen = 0
 
         with file_name.open() as f:
