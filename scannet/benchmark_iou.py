@@ -37,7 +37,7 @@ def main(args):
         pts_mask = npz_file['pts_mask']
         occ_list, holes_list = implicit_waterproofing(m, pts)
         if np.any(holes_list):
-            raise RuntimeError('holes_list not empty')
+            print('holes_list not empty', file=sys.stderr)
         iou = compute_iou(occ_list[pts_mask[:, 1]], pts_mask[pts_mask[:, 1], 0])
         best_iou = iou_scan[scan_id].get(obj_id)
         if best_iou is None or iou > best_iou[0]:

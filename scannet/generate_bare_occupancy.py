@@ -51,6 +51,7 @@ class AnnotatedMesh:
         self.red_mesh = red_mesh if red_mesh else None
         self.black_mesh = black_mesh if black_mesh else None
         self.scan_info = scan_info
+        skip = scan_info.Usable
 
         if not m_red.is_watertight or not m_black.is_watertight:
             print('NW!', end='!')
@@ -62,9 +63,14 @@ class AnnotatedMesh:
             print('Trusted', end=' ' if red_mesh else '!')
 
         if not black_mesh and not scan_info.PerfectA:
-            raise RuntimeError('Imperfect mesh without Black Label!')
+            print('Imperfect mesh without Black Label!', end='')
+            skip = False
         if not red_mesh and not scan_info.Trusted:
-            raise RuntimeError('Untrusted mesh without Red Label!')
+            print('Untrusted mesh without Red Label!', end='')
+            skip = False
+
+        if skip:
+            raise RuntimeError('Usable skip!')
 
     def load_mesh(self, file_path):
         ply = plyfile.PlyData.read(file_path)
@@ -84,19 +90,6 @@ class AnnotatedMesh:
             print('holes_list: ', holes_list.nonzero())
         contains_pos = torch.from_numpy(contains).to(device=self.device)
         contains_ok = torch.ones_like(contains_pos)
-        contains_neg = torch.logical_not(contains_pos)
-        if torch.any(contains_neg):
-            if self.scan_info.PerfectB or (self.red_mesh is None and self.scan_info.Trusted):
-                pass
-            elif self.red_mesh is not None:
-                pass
-            else:
-                raise RuntimeError('Untrusted mesh without Red Label!')
-        if not self.scan_info.PerfectA and torch.any(contains_pos):
-            if self.black_mesh is not None:
-                pass
-            else:
-                raise RuntimeError('Imperfect mesh without Black Label!')
 
         return torch.stack((contains_pos, contains_ok), dim=-1)
 
@@ -125,9 +118,6 @@ def main(args):
     for file in all_files:
         try:
             scan_info = register.check_scan(os.path.dirname(file), os.path.basename(file))
-            if not scan_info.Usable:
-                print(file, '-->Unusable Skip')
-                continue
             print(file, end=' ')
             m = AnnotatedMesh(args, file, scan_info, device, pool=pool)
             pts_mask = torch.cat([m.query_pts(p) for p in pts_split])
