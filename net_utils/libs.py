@@ -2,9 +2,9 @@
 # author: ynie
 # date: Feb, 2020
 
-import torch
-import torch.nn as nn
 import numpy as np
+import torch
+
 from external.pointnet2_ops_lib.pointnet2_ops.pointnet2_utils import furthest_point_sample, gather_operation
 
 

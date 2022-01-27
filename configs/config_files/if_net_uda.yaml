@@ -2,6 +2,7 @@ method: onet
 data:
   dataset: Shapes3D
   path: data/ShapeNet
+  abnormal: ../dataset/annoALL
   classes: null
   train_split: train
   val_split: val
@@ -32,7 +33,7 @@ model:
   z_dim: 64
   dmc_weight_prior: 10.
 training:
-  out_dir:  out/uda1_cls
+  out_dir:  out/uda_cls
   batch_size: 32
   print_every: 10
   visualize_every: 2000
@@ -73,4 +74,4 @@ log:
   save_results: True
   vis_step: 100
   print_step: 10
-  path: out/if_net
+  path: out/if_net_uda

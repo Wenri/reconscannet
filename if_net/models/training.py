@@ -44,7 +44,8 @@ class Trainer(object):
         _rot_matrix = torch.stack([torch.from_numpy(m.T.astype(np.float32)) for m in generate_rotmatrix()])
         self._rot_matrix_cuda = _rot_matrix.to(self.device)
 
-    def verify_alignment(self, partial, full_pc, threshold=1e-2, max_error=5, return_valid=False):
+    @staticmethod
+    def verify_alignment(partial, full_pc, threshold=1e-2, max_error=5, return_valid=False):
         x_nn = knn_points(partial, full_pc, K=1, return_sorted=False).dists[..., 0]
         invalid_count = torch.count_nonzero(x_nn > threshold, dim=-1)
         if return_valid:
@@ -193,3 +194,6 @@ class Trainer(object):
         for param_group in self.optimizer.param_groups:
             print(f'Resetting lr: {param_group["lr"]} initial_lr: {param_group.get("initial_lr")} to {lr}')
             param_group['lr'] = lr
+
+    def __bool__(self):
+        return True
