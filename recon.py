@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath
 from types import SimpleNamespace
 
 import numpy as np
@@ -25,6 +25,19 @@ from utils.checkpoints import CheckpointIO
 
 
 def run(opt, cfg):
+    export_db = {}
+    with open('name.txt', 'r') as f:
+        for p in f:
+            pf = PurePath(p.strip())
+            if pf.name != 'points.npz':
+                continue
+            s = pf.parent.name
+            if not s.startswith('scan'):
+                continue
+            scanid, objid, clsid = s.split('_')
+            curid = export_db.setdefault((int(scanid[4:]), int(objid)), clsid)
+            assert curid == clsid
+
     weight_file = Path(cfg.config['weight'])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,7 +55,7 @@ def run(opt, cfg):
     checkpoint_io = CheckpointIO(os.fspath(weight_file.parent), model=network)
     cat_set = cfg.config['data']['classes']
     cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
-    cat_set = ShapeNetCat.cabinet_cat | ShapeNetCat.table_cat | ShapeNetCat.chair_cat
+    # cat_set = ShapeNetCat.cabinet_cat | ShapeNetCat.table_cat | ShapeNetCat.chair_cat
 
     try:
         checkpoint_io.load(weight_file.name)
@@ -60,8 +73,8 @@ def run(opt, cfg):
                             padding=0)
 
     for cur_iter, data in enumerate(dataloader):
-        if cur_iter <= 200:
-            continue
+        # if cur_iter <= 200:
+        #     continue
 
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
@@ -74,13 +87,19 @@ def run(opt, cfg):
         print(f'scan_{c.scan_idx}')
 
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            if cat_set is not None and c.shapenet_catids[idx] not in cat_set:
-                continue
-
-            out_scan_dir.mkdir(exist_ok=True)
+            # if cat_set is not None and c.shapenet_catids[idx] not in cat_set:
+            #     continue
 
             ins_id = c.object_instance_labels[idx]
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()
+
+            clsid = export_db.get((c.scan_idx.item(), idx.item()))
+            if clsid is None:
+                continue
+
+            assert c.shapenet_ids[idx].startswith(clsid)
+
+            out_scan_dir.mkdir(exist_ok=True)
 
             voxels, ins_pc, overscan = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
                                                            c.axis_rectified[idx].cuda())

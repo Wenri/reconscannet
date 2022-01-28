@@ -1,9 +1,9 @@
 method: ISCNet
 seed: 10
-weight: out/abnormal2_cls/model_250_0.5051.pt
+weight: out/uda_cls/model_69_0.4791.pt
 device:
   use_gpu: True
-  gpu_ids: '0'
+  gpu_ids: '1'
   num_workers: 0
 data:
   dataset: scannet
