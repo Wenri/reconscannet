@@ -67,8 +67,6 @@ def main(args):
     consistency = 0
     unknown = 0
     for idx, file in enumerate(all_files):
-        if idx < 450:
-            continue
         try:
             print(file, end=' ')
             m = AnnotatedMesh(args, file, device, pool=pool)
@@ -102,7 +100,7 @@ def parse_args():
     base_dir = Path(__file__).parent
     parser = argparse.ArgumentParser('Instance Scene Completion.')
     parser.add_argument('--max_samples', type=int, default=60000, help='number of points')
-    parser.add_argument('--data_dir', type=Path, help='optional reload model path', default=Path('out_recon_uda_cls'))
+    parser.add_argument('--data_dir', type=Path, help='optional reload model path', default=Path('out_recon_uda_ext_cls'))
     parser.add_argument('--start_from', type=int, help='starting from scan id', default=0)
     return parser.parse_args()
 
