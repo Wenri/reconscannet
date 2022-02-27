@@ -72,12 +72,21 @@ class UDADataset(data.Dataset):
         cls_name = cls_dir.name.split('_')[0]
         return self.catmap[cls_name]
 
+    def get_id(self, idx):
+        npz_name: Path = self.ply_files[idx]
+        scan_dir = npz_name.parent
+        ins_id, *_ = npz_name.name.split('_', maxsplit=1)
+        _, scan_id = scan_dir.name.split('_', maxsplit=1)
+        id_tuple = (int(scan_id), int(ins_id))
+        return id_tuple
+
     def __getitem__(self, idx):
         while True:
             try:
                 ret = {
                     'partial_pc': self.load_partial(idx),
-                    'cls': self.get_cls(idx)
+                    'cls': self.get_cls(idx),
+                    'idx': self.get_id(idx)
                 }
                 return ret
             except Exception as e:

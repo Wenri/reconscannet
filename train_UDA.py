@@ -3,6 +3,7 @@ import os
 import pickle
 import sys
 import time
+from operator import itemgetter
 from pathlib import Path
 
 import matplotlib
@@ -174,6 +175,10 @@ def main(args):
         # Save checkpoint
         print('Saving checkpoint')
         checkpoint_io.save('model.pt', epoch_it=epoch_it, loss_val_best=metric_val_best)
+
+        hardness_list = sorted(trainer.hardness_dict.items(), key=itemgetter(1), reverse=True)
+        for h in hardness_list[:5]:
+            print(h)
 
     return os.EX_OK
 

@@ -1,4 +1,5 @@
 import random
+from collections import defaultdict
 
 import torch
 from torch.nn import functional as F
@@ -31,7 +32,7 @@ class TrainerUDA(Trainer):
 
         grid_coords = torch.from_numpy(grid_coords).to(device, dtype=torch.float)
         self.grid_coords = torch.reshape(grid_coords, (1, len(grid_points), 3)).to(device)
-
+        self.hardness_dict = defaultdict(int)
         super(TrainerUDA, self).__init__(model, device, exp_name, optimizer, warmup_iters,
                                          warmup_factor=warmup_factor, balance_weight=balance_weight)
 
@@ -41,15 +42,16 @@ class TrainerUDA(Trainer):
         for ema_param, param in zip(self.model_tea.parameters(), self.model.parameters()):
             ema_param.data.mul_(alpha).add_(param.data, alpha=1 - alpha)
 
-    def consistency(self, partial, cls_codes=None):
-        n_partial = partial.shape[0]
-        partial_input, p = self.overscan_aug(partial, self.grid_coords)
+    def consistency(self, partial_pc, idx, cls=None, **kwargs):
+        partial_pc = partial_pc.to(device=self.device)
+        n_partial = partial_pc.shape[0]
+        partial_input, p = self.overscan_aug(partial_pc, self.grid_coords)
 
         voxel_grids = pointcloud2voxel_fast(partial_input)
         # self.visualize('debug', voxel_grids, partial_input, p, occ)
 
-        input_features = self.model.infer_c(partial_input.transpose(1, 2), cls_codes_for_completion=cls_codes)
-        input_features_tea = self.model_tea.infer_c(partial_input.transpose(1, 2), cls_codes_for_completion=cls_codes)
+        input_features = self.model.infer_c(partial_input.transpose(1, 2), cls_codes_for_completion=cls)
+        input_features_tea = self.model_tea.infer_c(partial_input.transpose(1, 2), cls_codes_for_completion=cls)
 
         z = self.model.get_z_from_prior((n_partial,), sample=True, device=self.device)
         z_tea = self.model_tea.get_z_from_prior((n_partial,), sample=True, device=self.device)
@@ -58,10 +60,14 @@ class TrainerUDA(Trainer):
         ret_tea = self.model_tea.decode(p, z_tea, input_features_tea, voxel_grids).logits
 
         loss = F.mse_loss(F.sigmoid(ret), F.sigmoid(ret_tea), reduction='sum')
+        diff = torch.count_nonzero(torch.logical_xor(ret > 0, ret_tea > 0), dim=-1)
+
+        for scan_id, ins_id, hardness in zip(*idx, diff):
+            self.hardness_dict[scan_id.item(), ins_id.item()] += hardness.item()
+
         return loss
 
     def compute_loss(self, partial, valid_mask, p, occ, cls_codes=None, abnormal=None, **kwargs):
         loss, ret = super(TrainerUDA, self).compute_loss(partial, valid_mask, p, occ, cls_codes=cls_codes, **kwargs)
-        ab_partial = abnormal['partial_pc'].to(device=self.device)
-        loss += self.consistency(ab_partial, cls_codes=abnormal['cls'])
+        loss += self.consistency(**abnormal)
         return loss, ret
