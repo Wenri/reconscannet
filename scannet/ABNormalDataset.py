@@ -1,4 +1,6 @@
 import sys
+from collections import OrderedDict
+from operator import itemgetter
 from pathlib import Path
 
 import numpy as np
@@ -15,8 +17,20 @@ class ABNormalDataset(data.Dataset):
 
     def __init__(self, mode, cfg):
         data_dir = Path(cfg['data']['abnormal'])
-        self.npz_files = list(data_dir.glob('*/gen/scan_*/*_output.npz'))
-        self.npz_files.sort()
+        scans = {}
+        for sdir in ('red', 'black'):
+            for it in data_dir.glob(f'*/{sdir}/scan_*/*_partial_pc.ply'):
+                scan_id = int(it.parent.name.split('_')[1])
+                obj_id = int(it.name.split('_')[0])
+                scans.setdefault((scan_id, obj_id), it)
+        self.npz_files = OrderedDict(sorted(scans.items(), key=itemgetter(0)))
+        self.index_list = tuple(self.npz_files.keys())
+        scans = {}
+        for it in data_dir.glob('*/gen/scan_*/*_output.npz'):
+            scan_id = int(it.parent.name.split('_')[1])
+            obj_id = int(it.name.split('_')[0])
+            scans.setdefault((scan_id, obj_id), it)
+        self.anno_files = scans
         self.rand = np.random.default_rng()
         self.N = cfg['data']['pointcloud_n']
         self.OCCN = cfg['data']['points_subsample']
@@ -36,7 +50,7 @@ class ABNormalDataset(data.Dataset):
     def __len__(self):
         """ Returns the length of the dataset.
         """
-        return len(self.npz_files)
+        return len(self.index_list)
 
     def subsample(self, points, N):
         total = points.shape[0]
@@ -46,56 +60,61 @@ class ABNormalDataset(data.Dataset):
         indices = indices[:N]
         return points[indices]
 
-    def load_partial(self, idx):
-        npz_name = self.npz_files[idx]
-        file_name = npz_name.name
-        scan_dir = npz_name.parent
-        gen_dir = scan_dir.parent
-        red_path = Path(gen_dir.parent, 'red', scan_dir.name, file_name[:-10] + 'partial_pc.ply')
-        black_path = Path(gen_dir.parent, 'black', scan_dir.name, file_name[:-10] + 'partial_pc.ply')
-        pc_red = trimesh.load(red_path if red_path.exists() else black_path)
+    def load_partial(self, file_id):
+        npz_name = self.npz_files[file_id]
+        pc_red = trimesh.load(npz_name)
         # pc_black = trimesh.load(black_path)
         # assert np.allclose(pc_red.vertices, pc_black.vertices)
         return self.subsample(np.asarray(pc_red.vertices, dtype=np.float32), self.N)
 
-    def get_cls(self, idx):
-        npz_name = self.npz_files[idx]
-        scan_dir = npz_name.parent
+    def get_cls(self, file):
+        scan_dir = file.parent
         gen_dir = scan_dir.parent
         cls_dir = gen_dir.parent
         cls_name = cls_dir.name.split('_')[0]
         return self.catmap[cls_name]
 
     def load_by_id(self, scan_id, idx):
+        file = self.npz_files.get((int(scan_id), int(idx)))
         for i, file in enumerate(self.npz_files):
             if f"scan_{scan_id}" != file.parent.name:
                 continue
             if file.name.split('_')[0] != idx:
                 continue
-            return np.load(file), self.get_cls(i)
+        return np.load(file), self.get_cls(file)
 
     def __getitem__(self, idx):
         while True:
             try:
-                npz_file = np.load(self.npz_files[idx])
-                pts = npz_file['pts']
-                pts_mask = npz_file['pts_mask']
-                inpts = pts[np.all(pts_mask, axis=-1)]
-                outpts = pts[~pts_mask[:, 0] & pts_mask[:, 1]]
-
+                file_id = self.index_list[idx]
+                anno_name = self.anno_files.get(file_id)
                 n_in = self.OCCN // 2
-                inpts = self.subsample(inpts, n_in)
-                outpts = self.subsample(outpts, self.OCCN - n_in)
-                indices = self.rand.permutation(self.OCCN)
-                pts = np.concatenate((inpts, outpts), axis=0)
                 pts_mask = np.zeros(self.OCCN, dtype=np.bool_)
                 pts_mask[:n_in] = True
+                if anno_name:
+                    npz_file = np.load(anno_name)
+                    pts = npz_file['pts']
+                    mask = npz_file['pts_mask']
+                    inpts = pts[np.all(mask, axis=-1)]
+                    outpts = pts[~mask[:, 0] & mask[:, 1]]
+
+                    inpts = self.subsample(inpts, n_in)
+                    outpts = self.subsample(outpts, self.OCCN - n_in)
+                    indices = self.rand.permutation(self.OCCN)
+                    pts = np.concatenate((inpts, outpts), axis=0)[indices]
+                    pts_mask = pts_mask[indices]
+                else:
+                    anno_name = self.npz_files.get(file_id)
+                    pts = np.zeros((self.OCCN, 3), dtype=np.float32)
+                    n_in = 0
 
                 ret = {
-                    'pts': pts[indices],
-                    'pts_mask': pts_mask[indices],
-                    'partial_pc': self.load_partial(idx),
-                    'cls': self.get_cls(idx)
+                    'pts': pts,
+                    'pts_mask': pts_mask,
+                    'partial_pc': self.load_partial(file_id),
+                    'cls': self.get_cls(anno_name),
+                    'n_in': n_in,
+                    'idx': file_id
                 }
                 return ret
             except Exception as e:

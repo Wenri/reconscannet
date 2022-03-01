@@ -3,6 +3,7 @@ import os
 import pickle
 import sys
 import time
+from operator import itemgetter
 from pathlib import Path
 
 import matplotlib
@@ -56,6 +57,7 @@ def train_one_epoch(train_loader, abnormal_loader, trainer, epoch_it, print_ever
     for it, batch in enumerate(train_loader):
         abnormal_batch, abnormal_iter = get_from_infinite_iter(abnormal_iter, abnormal_loader)
         loss, aug, fixed_id, invalid_id = trainer.train_step(batch, abnormal=abnormal_batch)
+        trainer.update_ema_variables(alpha=0.999, global_step=it)
         fix_number += len(fixed_id)
         inv_stat.extend(invalid_id.values())
         total_aug += aug
@@ -112,17 +114,19 @@ def main(args):
 
     # Model
     model = get_model(cfg, device=device, dataset=train_dataset)
+    model_tea = get_model(cfg, device=device, dataset=train_dataset)
 
     # Intialize training
     # optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     # optimizer = optim.Adam(model.parameters(), lr=1e-4)
     optimizer = AdaBelief(model.parameters(), lr=args.lr)
-    trainer = Trainer(model, exp_name='if_net_scannet', optimizer=optimizer, device=device,
+    trainer = Trainer(model, model_tea, exp_name='if_net_scannet', optimizer=optimizer, device=device,
                       warmup_iters=100, balance_weight=cfg['training']['balance_weight'])
 
     checkpoint_io = CheckpointIO(out_dir, model=model, optimizer=optimizer)
     try:
         load_dict = checkpoint_io.load('model.pt')
+        trainer.update_ema_variables(0, 0)
     except (FileNotFoundError, pickle.UnpicklingError) as e:
         print('checkpoint_io load err: ', e, file=sys.stderr)
         load_dict = dict()
@@ -171,6 +175,12 @@ def main(args):
         # Save checkpoint
         print('Saving checkpoint')
         checkpoint_io.save('model.pt', epoch_it=epoch_it, loss_val_best=metric_val_best)
+
+        hardness_list = sorted(trainer.hardness_dict.items(), key=itemgetter(1), reverse=True)
+        for h in hardness_list[:5]:
+            print(h)
+
+    return os.EX_OK
 
 
 def parse_args():
