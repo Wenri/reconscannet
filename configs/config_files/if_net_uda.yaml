@@ -2,7 +2,7 @@ method: onet
 data:
   dataset: Shapes3D
   path: data/ShapeNet
-  abnormal: ../dataset/annoALL
+  abnormal: data/udaALL
   classes: null
   train_split: train
   val_split: val

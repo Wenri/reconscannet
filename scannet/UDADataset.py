@@ -18,11 +18,9 @@ class UDADataset(data.Dataset):
     def scan_files(data_dir):
         scans = {}
 
-        for sdir in ('red', 'black'):
-            for it in data_dir.glob(f'*/{sdir}/scan_*/*_partial_pc.ply'):
-                scan_id = int(it.parent.name.split('_')[1])
-                obj_id = int(it.name.split('_')[0])
-                scans.setdefault((scan_id, obj_id), it)
+        for it in data_dir.glob(f'*/scan_*/*_partial_pc.ply'):
+            file_id = int(it.parent.name.split('_')[1]), int(it.name.split('_')[0])
+            scans.setdefault(file_id, it)
 
         files = sorted(scans.items(), key=itemgetter(0))
         return [a[1] for a in files]
@@ -67,8 +65,7 @@ class UDADataset(data.Dataset):
     def get_cls(self, idx):
         npz_name = self.ply_files[idx]
         scan_dir = npz_name.parent
-        gen_dir = scan_dir.parent
-        cls_dir = gen_dir.parent
+        cls_dir = scan_dir.parent
         cls_name = cls_dir.name.split('_')[0]
         return self.catmap[cls_name]
 
@@ -77,7 +74,7 @@ class UDADataset(data.Dataset):
         scan_dir = npz_name.parent
         ins_id, *_ = npz_name.name.split('_', maxsplit=1)
         _, scan_id = scan_dir.name.split('_', maxsplit=1)
-        id_tuple = (int(scan_id), int(ins_id))
+        id_tuple = int(scan_id), int(ins_id)
         return id_tuple
 
     def __getitem__(self, idx):

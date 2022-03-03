@@ -53,11 +53,11 @@ def train_one_epoch(train_loader, abnormal_loader, trainer, epoch_it, print_ever
     fix_number = 0
     inv_stat = []
     abnormal_iter = iter(abnormal_loader)
-
+    total_steps = len(train_loader) * epoch_it
     for it, batch in enumerate(train_loader):
         abnormal_batch, abnormal_iter = get_from_infinite_iter(abnormal_iter, abnormal_loader)
         loss, aug, fixed_id, invalid_id = trainer.train_step(batch, abnormal=abnormal_batch)
-        trainer.update_ema_variables(alpha=0.999, global_step=it)
+        trainer.update_ema_variables(alpha=0.999, global_step=total_steps + it)
         fix_number += len(fixed_id)
         inv_stat.extend(invalid_id.values())
         total_aug += aug

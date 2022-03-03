@@ -32,7 +32,7 @@ model:
   z_dim: 64
   dmc_weight_prior: 10.
 training:
-  out_dir:  out/uda1_cls
+  out_dir:  out/uda_pre_cls
   batch_size: 32
   print_every: 10
   visualize_every: 2000
