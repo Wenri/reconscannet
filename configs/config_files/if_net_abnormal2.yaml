@@ -3,7 +3,7 @@ data:
   dataset: Shapes3D
   path: data/ShapeNet
   abnormal: ../dataset/annoALL
-  classes: null
+  classes: sofa_cat
   train_split: train
   val_split: val
   test_split: test

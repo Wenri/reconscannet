@@ -20,6 +20,7 @@ class TrainerUDA(Trainer):
         self.min = -0.5
         self.max = 0.5
         self.resolution = 24
+        self.enable_uda = False
 
         grid_points = iw.create_grid_points_from_bounds(self.min, self.max, self.resolution)
         grid_points[:, 0], grid_points[:, 2] = grid_points[:, 2], grid_points[:, 0].copy()
@@ -69,5 +70,6 @@ class TrainerUDA(Trainer):
 
     def compute_loss(self, partial, valid_mask, p, occ, cls_codes=None, abnormal=None, **kwargs):
         loss, ret = super(TrainerUDA, self).compute_loss(partial, valid_mask, p, occ, cls_codes=cls_codes, **kwargs)
-        loss += self.consistency(**abnormal)
+        if self.enable_uda:
+            loss += self.consistency(**abnormal)
         return loss, ret

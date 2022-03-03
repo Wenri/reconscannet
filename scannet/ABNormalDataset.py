@@ -15,22 +15,20 @@ class ABNormalDataset(data.Dataset):
     """ 3D Occupancy ABNormal dataset class.
     """
 
-    def __init__(self, mode, cfg):
+    def __init__(self, mode, cfg, valid_only=True):
         data_dir = Path(cfg['data']['abnormal'])
         scans = {}
         for sdir in ('red', 'black'):
             for it in data_dir.glob(f'*/{sdir}/scan_*/*_partial_pc.ply'):
-                scan_id = int(it.parent.name.split('_')[1])
-                obj_id = int(it.name.split('_')[0])
-                scans.setdefault((scan_id, obj_id), it)
+                file_id = int(it.parent.name.split('_')[1]), int(it.name.split('_')[0])
+                scans.setdefault(file_id, it)
         self.npz_files = OrderedDict(sorted(scans.items(), key=itemgetter(0)))
-        self.index_list = tuple(self.npz_files.keys())
         scans = {}
         for it in data_dir.glob('*/gen/scan_*/*_output.npz'):
-            scan_id = int(it.parent.name.split('_')[1])
-            obj_id = int(it.name.split('_')[0])
-            scans.setdefault((scan_id, obj_id), it)
-        self.anno_files = scans
+            file_id = int(it.parent.name.split('_')[1]), int(it.name.split('_')[0])
+            scans.setdefault(file_id, it)
+        self.anno_files = OrderedDict(sorted(scans.items(), key=itemgetter(0)))
+        self.index_list = tuple(self.anno_files.keys() if valid_only else self.npz_files.keys())
         self.rand = np.random.default_rng()
         self.N = cfg['data']['pointcloud_n']
         self.OCCN = cfg['data']['points_subsample']
