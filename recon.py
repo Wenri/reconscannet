@@ -1,42 +1,38 @@
 import argparse
 import os
 import sys
-from pathlib import Path, PurePath
+from pathlib import Path
 from types import SimpleNamespace
 
-import numpy as np
 import torch
-import vtkmodules.all as vtk
 from torch.utils.data import DataLoader
-from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
 
 from configs.config_utils import CONFIG
 from configs.scannet_config import ScannetConfig
 from dataloader import ISCNet_ScanNet, collate_fn, my_worker_init_fn
-from export_scannet_pts import tri_to_mesh, vox_to_mesh, get_bbox
+from export_scannet_pts import tri_to_mesh, vox_to_mesh, get_bbox, get_reverse_catmap
 from if_net.models.data.config import get_model
 from if_net.models.data.core import list_categories
 from if_net.models.generator import Generator3D
 from net_utils.utils import initiate_environment
-from net_utils.voxel_util import voxels_from_scannet, transform_shapenet
+from net_utils.voxel_util import voxels_from_scannet
 from scannet.scannet_utils import ShapeNetCat
-from scannet.visualization.vis_for_demo import Vis_base
 from utils.checkpoints import CheckpointIO
 
 
 def run(opt, cfg):
-    export_db = {}
-    with open('name.txt', 'r') as f:
-        for p in f:
-            pf = PurePath(p.strip())
-            if pf.name != 'points.npz':
-                continue
-            s = pf.parent.name
-            if not s.startswith('scan'):
-                continue
-            scanid, objid, clsid = s.split('_')
-            curid = export_db.setdefault((int(scanid[4:]), int(objid)), clsid)
-            assert curid == clsid
+    # export_db = {}
+    # with open('name.txt', 'r') as f:
+    #     for p in f:
+    #         pf = PurePath(p.strip())
+    #         if pf.name != 'points.npz':
+    #             continue
+    #         s = pf.parent.name
+    #         if not s.startswith('scan'):
+    #             continue
+    #         scanid, objid, clsid = s.split('_')
+    #         curid = export_db.setdefault((int(scanid[4:]), int(objid)), clsid)
+    #         assert curid == clsid
 
     weight_file = Path(cfg.config['weight'])
 
@@ -55,7 +51,9 @@ def run(opt, cfg):
     checkpoint_io = CheckpointIO(os.fspath(weight_file.parent), model=network)
     cat_set = cfg.config['data']['classes']
     cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
-    # cat_set = ShapeNetCat.cabinet_cat | ShapeNetCat.table_cat | ShapeNetCat.chair_cat
+    cat_set = ShapeNetCat.cabinet_cat | ShapeNetCat.table_cat | ShapeNetCat.chair_cat | ShapeNetCat.sofa_cat | \
+              ShapeNetCat.display_cat
+    reverse_map = get_reverse_catmap()
 
     try:
         checkpoint_io.load(weight_file.name)
@@ -79,26 +77,28 @@ def run(opt, cfg):
         bid = 0
         c = SimpleNamespace(**{k: v[bid] for k, v in get_bbox(cfg.dataset_config, **data).items()})
 
-        instance_models = []
-        center_list = []
-        vector_list = []
-
-        out_scan_dir = opt.output_dir / f'scan_{c.scan_idx}'
-        print(f'scan_{c.scan_idx}')
+        # instance_models = []
+        # center_list = []
+        # vector_list = []
+        scan_idx = c.scan_idx.item()
+        print(f'scan_{scan_idx}')
 
         for idx in c.box_label_mask.nonzero(as_tuple=True)[0]:
-            # if cat_set is not None and c.shapenet_catids[idx] not in cat_set:
-            #     continue
+            if cat_set is not None and c.shapenet_catids[idx] not in cat_set:
+                continue
 
             ins_id = c.object_instance_labels[idx]
             ins_pc = c.point_clouds[c.point_instance_labels == ins_id].cuda()
 
-            clsid = export_db.get((c.scan_idx.item(), idx.item()))
-            if clsid is None:
-                continue
+            # clsid = export_db.get((c.scan_idx.item(), idx.item()))
+            # if clsid is None:
+            #     continue
+            #
+            # assert c.shapenet_ids[idx].startswith(clsid)
 
-            assert c.shapenet_ids[idx].startswith(clsid)
-
+            out_scan_dir = opt.output_dir / reverse_map[c.shapenet_catids[idx]]
+            out_scan_dir.mkdir(exist_ok=True)
+            out_scan_dir = out_scan_dir / f'scan_{scan_idx}'
             out_scan_dir.mkdir(exist_ok=True)
 
             voxels, ins_pc, overscan = voxels_from_scannet(ins_pc, c.box_centers[idx].cuda(), c.box_sizes[idx].cuda(),
@@ -113,31 +113,29 @@ def run(opt, cfg):
             # output_pcd = output2[0, :, :3].detach().cpu().numpy()
             output_pcd_fn = tri_to_mesh(meshes, out_scan_dir / f"{idx}_{c.shapenet_ids[idx]}_output")
 
-            ply_reader = vtk.vtkPLYReader()
-            ply_reader.SetFileName(os.fspath(output_pcd_fn))
-            ply_reader.Update()
-            # get points from object
-            polydata = ply_reader.GetOutput().GetPoints()
-            # read points using vtk_to_numpy
-            obj_points = torch.from_numpy(vtk_to_numpy(polydata.GetData()))
-            obj_points = torch.matmul(obj_points * overscan.cpu(), transform_shapenet.T) * c.box_sizes[idx]
-            obj_points = torch.matmul(obj_points, c.axis_rectified[idx]) + c.box_centers[idx]
-
-            polydata.SetData(numpy_to_vtk(obj_points.numpy(), deep=True))
-            instance_models.append(ply_reader)
-
-            center_list.append(c.box_centers[idx].numpy())
-
-            vectors = torch.diag(c.box_sizes[idx] / 2.) @ c.axis_rectified[idx]
-            vector_list.append(vectors.numpy())
-
-        if not instance_models:
-            continue
-
-        scene = Vis_base(scene_points=c.point_clouds, instance_models=instance_models, center_list=center_list,
-                         vector_list=vector_list)
-        camera_center = np.array([0, -3, 3])
-        scene.visualize(centroid=camera_center, offline=True, save_path=out_scan_dir / 'pred.png')
+        #     ply_reader = vtk.vtkPLYReader()
+        #     ply_reader.SetFileName(os.fspath(output_pcd_fn))
+        #     ply_reader.Update()
+        #     # get points from object
+        #     polydata = ply_reader.GetOutput().GetPoints()
+        #     # read points using vtk_to_numpy
+        #     obj_points = torch.from_numpy(vtk_to_numpy(polydata.GetData()))
+        #     obj_points = torch.matmul(obj_points * overscan.cpu(), transform_shapenet.T) * c.box_sizes[idx]
+        #     obj_points = torch.matmul(obj_points, c.axis_rectified[idx]) + c.box_centers[idx]
+        #
+        #     polydata.SetData(numpy_to_vtk(obj_points.numpy(), deep=True))
+        #     instance_models.append(ply_reader)
+        #
+        #     center_list.append(c.box_centers[idx].numpy())
+        #
+        #     vectors = torch.diag(c.box_sizes[idx] / 2.) @ c.axis_rectified[idx]
+        #     vector_list.append(vectors.numpy())
+        #
+        # if instance_models:
+        #     scene = Vis_base(scene_points=c.point_clouds, instance_models=instance_models, center_list=center_list,
+        #                      vector_list=vector_list)
+        #     camera_center = np.array([0, -3, 3])
+        #     scene.visualize(centroid=camera_center, offline=True, save_path=out_scan_dir / 'pred.png')
 
     return 0
 

@@ -68,9 +68,7 @@ class ABNormalDataset(data.Dataset):
 
     def load_by_id(self, scan_id, idx):
         for i, file in enumerate(self.npz_files):
-            if f"scan_{scan_id}" != file.parent.name:
-                continue
-            if file.name.split('_')[0] != idx:
+            if scan_id != int(file.parent.name.split('_')[1]) or int(file.name.split('_')[0]) != idx:
                 continue
             return np.load(file), self.get_cls(i)
 

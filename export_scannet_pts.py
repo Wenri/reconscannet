@@ -171,6 +171,15 @@ def get_scannet_mesh(path_config, scene_name):
     return mesh
 
 
+def get_reverse_catmap():
+    reverse_map = {}
+    for k, v in vars(ShapeNetCat).items():
+        if k.endswith('_cat'):
+            for a in v:
+                reverse_map[a], *_ = k.split('_', maxsplit=1)
+    return reverse_map
+
+
 def run(opt, cfg):
     dataset = ISCNet_ScanNet(cfg, mode='test', split='train')
     dataloader = DataLoader(dataset=dataset,
@@ -184,12 +193,7 @@ def run(opt, cfg):
     # cat_set = getattr(ShapeNetCat, cat_set) if cat_set else None
     cat_set = ShapeNetCat.cabinet_cat | ShapeNetCat.table_cat | ShapeNetCat.chair_cat | ShapeNetCat.sofa_cat | \
               ShapeNetCat.display_cat
-
-    reverse_map = {}
-    for k, v in vars(ShapeNetCat).items():
-        if k.endswith('_cat'):
-            for a in v:
-                reverse_map[a], *_ = k.split('_', maxsplit=1)
+    reverse_map = get_reverse_catmap()
     # f = open('/tmp/maptab.txt', 'w')
     for cur_iter, data in enumerate(dataloader):
         # if cur_iter <= 931:

@@ -70,7 +70,7 @@ class AnnotatedMesh:
             skip = False
 
         if skip:
-            raise RuntimeError('Usable skip!')
+            print('Usable skip!', end='')
 
     def load_mesh(self, file_path):
         ply = plyfile.PlyData.read(file_path)
