@@ -19,7 +19,7 @@ from net_utils.utils import initiate_environment
 def run(opt, cfg):
     dataset = ISCNet_ScanNet(cfg, mode='test', split='train')
     dataloader = DataLoader(dataset=dataset,
-                            num_workers=cfg.config['device']['num_workers'],
+                            num_workers=os.cpu_count(),
                             batch_size=1,
                             shuffle=False,
                             collate_fn=collate_fn,
@@ -49,8 +49,10 @@ def run(opt, cfg):
             shapenatcat_id = c.shapenet_catids[idx]
             stat_cat_dict[shapenatcat_id] += 1
 
-    for id, cnt in stat_cat_dict.items():
-        print(f'{metadata[id]["name"]}: {cnt}')
+    for cid, cnt in stat_cat_dict.items():
+        name = metadata.get(cid)
+        name = name['name'] if name else cid
+        print(f'{name}: {cnt}')
 
 
 def parse_args():
