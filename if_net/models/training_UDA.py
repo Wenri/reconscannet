@@ -63,5 +63,5 @@ class TrainerUDA(Trainer):
     def compute_loss(self, partial, valid_mask, p, occ, cls_codes=None, abnormal=None, **kwargs):
         loss, ret = super(TrainerUDA, self).compute_loss(partial, valid_mask, p, occ, cls_codes=cls_codes, **kwargs)
         ab_partial = abnormal['partial_pc'].to(device=self.device)
-        loss += self.consistency(ab_partial, cls_codes=abnormal['cls'])
+        loss += 5e-2 * self.consistency(ab_partial, cls_codes=abnormal['cls'])
         return loss, ret

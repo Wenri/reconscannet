@@ -33,7 +33,12 @@ class Benchmark:
         if npz_file is None:
             return None
         npz_file, cls_id = npz_file
-        m = trimesh.load(f, force='mesh')
+
+        try:
+            m = trimesh.load(f, force='mesh')
+        except Exception:
+            return None
+
         pts = npz_file['pts']
         pts_mask = npz_file['pts_mask']
         occ_list, holes_list = implicit_waterproofing(m, pts)
@@ -45,7 +50,7 @@ class Benchmark:
 
 def main(args):
     bm = Benchmark()
-    file_to_eval = sorted(Path(args.data_dir).glob('*/*_output.ply'))
+    file_to_eval = sorted(Path(args.data_dir).glob('**/*_output.ply'))
     iou_scan = defaultdict(dict)
     with Pool(os.cpu_count()) as p:
         for scan_id, obj_id, cls_id, iou in filter(None, p.imap_unordered(bm.calc_f, tqdm(file_to_eval))):

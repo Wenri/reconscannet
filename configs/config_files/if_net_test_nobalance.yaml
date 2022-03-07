@@ -1,6 +1,6 @@
 method: ISCNet
 seed: 10
-weight: out/all_cls_recon_test/model_89_0.5116+.pt
+weight: out_recon_baseline_24/model_24_0.4493.pt
 device:
   use_gpu: True
   gpu_ids: '0'
@@ -8,7 +8,7 @@ device:
 data:
   dataset: scannet
   path: data/ShapeNet
-  classes: chair_cat
+  classes: null
   split: splits/fullscan
   num_point: 80000
   num_target: 256
@@ -52,7 +52,7 @@ test:
   per_class_proposal: True
   conf_thresh: 0.05
   evaluate_mesh_mAP: False
-  threshold: 0.2
+  threshold: 0.5
 generation:
   generate_mesh: True
   resolution_0: 32

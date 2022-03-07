@@ -16,7 +16,7 @@ data:
   pointcloud_n: 2688
   pointcloud_target_n: 1024
   pointcloud_noise: 0.02
-  aug_ratio: 0.3
+  aug_ratio: 0.5
   with_transforms: false
   use_cls_for_completion: true
   skip_propagate: True
@@ -32,7 +32,7 @@ model:
   z_dim: 64
   dmc_weight_prior: 10.
 training:
-  out_dir:  out/uda1_cls
+  out_dir:  out/baseline_cls
   batch_size: 32
   print_every: 10
   visualize_every: 2000

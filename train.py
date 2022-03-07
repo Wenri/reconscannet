@@ -88,7 +88,7 @@ def main(args):
         collate_fn=collate_remove_none, worker_init_fn=worker_init_fn)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=4, num_workers=4, shuffle=False,
+        val_dataset, batch_size=2, num_workers=4, shuffle=False,
         collate_fn=collate_remove_none, worker_init_fn=worker_init_fn)
 
     # For visualizations
