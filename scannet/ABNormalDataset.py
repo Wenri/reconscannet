@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -59,7 +60,9 @@ class ABNormalDataset(data.Dataset):
         return self.subsample(np.asarray(pc_red.vertices, dtype=np.float32), self.N)
 
     def get_cls(self, idx):
-        npz_name = self.npz_files[idx]
+        return self.parse_cls(self.npz_files[idx])
+
+    def parse_cls(self, npz_name):
         scan_dir = npz_name.parent
         gen_dir = scan_dir.parent
         cls_dir = gen_dir.parent
@@ -70,7 +73,7 @@ class ABNormalDataset(data.Dataset):
         for i, file in enumerate(self.npz_files):
             if scan_id != int(file.parent.name.split('_')[1]) or int(file.name.split('_')[0]) != idx:
                 continue
-            return np.load(file), self.get_cls(i)
+            return np.load(os.fspath(file))
 
     def __getitem__(self, idx):
         while True:
